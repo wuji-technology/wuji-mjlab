@@ -220,6 +220,12 @@ This project builds on the following open-source projects:
 - [rsl_rl](https://github.com/leggedrobotics/rsl_rl) — PPO implementation (vendored under `src/wuji_rl_libs/`)
 - [pupil-apriltags](https://github.com/pupil-labs/apriltags) — AprilTag detector for the deploy vision module
 
+## Contributors
+
+- [Jielin Wu](https://github.com/AIRJASON50)
+- [Shenzhe Yao](https://github.com/LeopoldYao)
+- [Han Yang](https://github.com/yanghan-a)
+
 ## Citation
 
 If you find this project useful, please consider citing:

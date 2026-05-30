@@ -236,6 +236,12 @@ pixi run pre-commit install
 - [rsl_rl](https://github.com/leggedrobotics/rsl_rl) — PPO 实现（已内嵌至 `src/wuji_rl_libs/`）
 - [pupil-apriltags](https://github.com/pupil-labs/apriltags) — 部署视觉模块使用的 AprilTag 检测器
 
+## 贡献者
+
+- [Jielin Wu](https://github.com/AIRJASON50)
+- [Shenzhe Yao](https://github.com/LeopoldYao)
+- [Han Yang](https://github.com/yanghan-a)
+
 ## 引用
 
 如果本项目对你有帮助，欢迎引用：
