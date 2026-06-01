@@ -1,9 +1,9 @@
-# Sim-to-real Setup — WujiHand Reorient
+# Sim-to-real Setup — Wuji Hand Reorient
 
 [中文版](setup_zh.md)
 
 This guide walks you through the **hardware-side** setup required to run
-the trained `WujiHand_Reorient` ONNX policy on a physical WujiHand. For
+the trained `WujiHand_Reorient` ONNX policy on a physical Wuji Hand. For
 the **software pipeline** (ZMQ topology, observer architecture, ONNX policy
 loading), see [`deploy/reorient/README.md`](../../deploy/reorient/README.md).
 
@@ -11,7 +11,7 @@ By the end of this guide you'll have:
 - A calibrated camera observing the workspace at known intrinsics
 - A 3D-printed ArUco-tagged cube
 - A wrist-mounted AprilTag defining the world (wrist) frame
-- A WujiHand mounted on a fixture in view of the camera
+- A Wuji Hand mounted on a fixture in view of the camera
 - `camera.yaml` + `cube_tags.json` populated for **your** rig
 - A working `pixi run -e deploy vision` + `play-real` pipeline
 
@@ -72,8 +72,8 @@ section 5 geometry checks pass.
   the print/buy workflow and the exact dimension convention.
   (The 24 cube-face ArUco tiles are *not* stickers — they are baked into
   the shipped Bambu Lab `.3mf` via dual-material printing; see section 3.1.)
-- **WUJI Hand1.0 right-hand**. Contact Wuji Technology directly;
-  `wujihandpy==1.5.1` expects the WUJI Hand1.0 firmware revision matching
+- **Wuji Hand right-hand**. Contact Wuji Technology directly;
+  `wujihandpy==1.5.1` expects the Wuji Hand firmware revision matching
   `lib/hand_driver.py`. The host connects via a single USB cable (the hand
   exposes a USB CDC interface on STMicroelectronics vendor ID 0483).
 - **Hand mounting jig** — 3D-printed PLA base bolted to an aluminum
@@ -209,7 +209,7 @@ Troubleshooting:
 [`pixi.toml`](../../pixi.toml) `[feature.deploy.pypi-dependencies]`):
 `opencv-contrib-python>=4.13` (ArUco + IPPE), `pupil-apriltags>=1.0`
 (wrist tag), `pyzmq>=27.0` (cube/goal pub-sub), `glfw>=2.10` (passive
-MuJoCo viewer), `wujihandpy==1.5.1` (WUJI Hand1.0 driver), `pyyaml>=6.0`.
+MuJoCo viewer), `wujihandpy==1.5.1` (Wuji Hand driver), `pyyaml>=6.0`.
 Smoke-test:
 
 ```bash
@@ -456,12 +456,12 @@ of margin for clean corner detection).
 
 ### 5.1 Hand mounting
 
-The WujiHand sits on a 3D-printed jig bolted to an aluminum honeycomb
+The Wuji Hand sits on a 3D-printed jig bolted to an aluminum honeycomb
 breadboard. The jig exposes the wrist AprilTag to the camera and gives
 the cube ~20 cm of clear space above the palm. Route the Hand's USB cable
 behind the wrist, out of the camera's field of view.
 
-![Hand on jig, side view — assembled WUJI Hand1.0 on the 3D-printed jig with the wrist AprilTag mounted on top](images/hand-jig-side.jpg)
+![Hand on jig, side view — assembled Wuji Hand on the 3D-printed jig with the wrist AprilTag mounted on top](images/hand-jig-side.jpg)
 
 **Bill of materials**:
 
@@ -482,9 +482,9 @@ thickness — 16 mm typical) for fixing the base to the breadboard.
    grid on the breadboard.
 3. Bolt the base down with four M6 socket-head screws through the
    counterbores into the breadboard.
-4. The assembled stack is about 147 mm tall and tilts the WujiHand
+4. The assembled stack is about 147 mm tall and tilts the Wuji Hand
    back by 10° so the wrist tag faces the camera at rest.
-5. Strap the WujiHand into the cradle; route the Hand's USB cable
+5. Strap the Wuji Hand into the cradle; route the Hand's USB cable
    behind the wrist out of camera view.
 
 ### 5.2 Camera mounting

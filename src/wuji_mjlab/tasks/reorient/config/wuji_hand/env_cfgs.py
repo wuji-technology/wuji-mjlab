@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Wuji Technology Co., Ltd.
-"""WUJI Hand1.0 Reorient environment configurations.
+"""Wuji Hand Reorient environment configurations.
 
-Thin binding layer: attaches the WUJI Hand1.0 robot + cube object entities
+Thin binding layer: attaches the Wuji Hand robot + cube object entities
 and the robot-specific viewer target to the task cfg produced by
 ``make_reorient_env_cfg``. All task design (sensors, rewards, DR events,
 play-mode overrides) lives in ``reorient_terms`` / ``reorient_env_cfg``.
@@ -22,7 +22,7 @@ from wuji_mjlab.tasks.reorient.reorient_env_cfg import make_reorient_env_cfg
 def wuji_hand_reorient_env_cfg(
   play: bool = False, num_envs: int = 8192
 ) -> ManagerBasedRlEnvCfg:
-  """Create WUJI Hand1.0 Reorient task configuration."""
+  """Create Wuji Hand Reorient task configuration."""
   cfg = make_reorient_env_cfg(play=play, num_envs=num_envs)
   cfg.scene.entities = {
     "robot": get_wuji_hand_cfg(),

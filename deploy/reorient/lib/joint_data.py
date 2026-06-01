@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Wuji Technology Co., Ltd.
-"""Joint Data Shared Memory for WujiHand Deploy.
+"""Joint Data Shared Memory for Wuji Hand Deploy.
 
 Provides shared memory communication for real-time joint data visualization.
 

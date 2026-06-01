@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Wuji Technology Co., Ltd.
-"""ZMQ Communication Bridge for WujiHand Deploy.
+"""ZMQ Communication Bridge for Wuji Hand Deploy.
 
 Provides unified ZMQ pub/sub classes for communication between processes:
 - GoalPublisher: Publish goal orientation (toreal_viewer.py -> play_real.py)

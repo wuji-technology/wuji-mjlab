@@ -4,7 +4,7 @@
 
 Sim2real bridge for `WujiHand_Reorient`: ArUco-based cube tracking with
 an AprilTag-anchored wrist frame + closed-loop policy control on the
-physical WujiHand.
+physical Wuji Hand.
 
 ## Pipeline
 

@@ -1,5 +1,5 @@
 <mujoco>
-  <!-- Shared cube definition for WujiHand reorientation task
+  <!-- Shared cube definition for Wuji Hand reorientation task
        54mm edge cube (size=0.027), mass=120g
        Paths are relative to objects/cube/ directory -->
 

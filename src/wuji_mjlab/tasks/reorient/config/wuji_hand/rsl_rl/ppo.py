@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Wuji Technology Co., Ltd.
-"""RL configuration for the WUJI Hand1.0 Reorient task."""
+"""RL configuration for the Wuji Hand Reorient task."""
 
 from mjlab.rl import (
   RslRlModelCfg,

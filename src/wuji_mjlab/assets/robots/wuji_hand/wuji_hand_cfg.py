@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Wuji Technology Co., Ltd.
-"""Common WUJI Hand1.0 robot config helpers."""
+"""Common Wuji Hand robot config helpers."""
 
 from functools import partial
 from pathlib import Path
@@ -93,7 +93,7 @@ WUJI_HAND_HOME_KEYFRAME = EntityCfg.InitialStateCfg(
 
 
 def get_wuji_hand_cfg(hand_side: str = "right") -> EntityCfg:
-  """Build the WUJI Hand1.0 EntityCfg for the canonical mesh-palm + softbody-thumb XML."""
+  """Build the Wuji Hand EntityCfg for the canonical mesh-palm + softbody-thumb XML."""
   xml_path = _resolve_wuji_hand_xml(hand_side)
   return EntityCfg(
     init_state=WUJI_HAND_HOME_KEYFRAME,

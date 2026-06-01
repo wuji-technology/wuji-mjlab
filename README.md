@@ -12,7 +12,7 @@
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
 [![Stars](https://img.shields.io/github/stars/wuji-technology/wuji-mjlab?style=social)](https://github.com/wuji-technology/wuji-mjlab/stargazers)
 
-> In-hand cube reorientation on the WUJI Hand1.0: PPO policies trained in mjlab (GPU-batched physics via mujoco-warp), covering the full SO(3) goal space, with a sim2real bridge for closed-loop deployment on the physical hand.
+> In-hand cube reorientation on the Wuji Hand: PPO policies trained in mjlab (GPU-batched physics via mujoco-warp), covering the full SO(3) goal space, with a sim2real bridge for closed-loop deployment on the physical hand.
 
 <p align="center">
   <img src="docs/assets/sim.gif" width="45%" alt="sim reorient demo" />
@@ -23,7 +23,7 @@
 
 | Robot | Task ID | Pretrained checkpoint | Demo |
 |---|---|---|---|
-| WUJI Hand1.0 | `WujiHand_Reorient` | [Latest release assets](https://github.com/wuji-technology/wuji-mjlab/releases/latest) | sim + real GIFs above |
+| Wuji Hand | `WujiHand_Reorient` | [Latest release assets](https://github.com/wuji-technology/wuji-mjlab/releases/latest) | sim + real GIFs above |
 
 Pull the checkpoint and CAD bundle from the latest release:
 
@@ -55,7 +55,7 @@ wuji-mjlab/
 - Linux x86_64
 - NVIDIA GPU, CUDA 12.8 (Blackwell sm_120 / RTX 50-series supported)
 - [pixi](https://pixi.sh) ≥ 0.66 (the version CI uses) — **the only supported installer**
-- For sim2real: WUJI Hand1.0 hardware + Hikrobot USB-3 camera + Hikvision MVS SDK + 3D-printed ArUco-tagged cube + wrist AprilTag — see [`docs/sim2real/setup.md`](docs/sim2real/setup.md)
+- For sim2real: Wuji Hand hardware + Hikrobot USB-3 camera + Hikvision MVS SDK + 3D-printed ArUco-tagged cube + wrist AprilTag — see [`docs/sim2real/setup.md`](docs/sim2real/setup.md)
 
 > ⚠️ **CAUTION**: this repo is **pixi-only**. `conda + pip install -e .` is not tested and not supported.
 
@@ -116,10 +116,10 @@ pixi run python -m wuji_mjlab.tasks.reorient.scripts.view_task WujiHand_Reorient
 ## Sim-to-real
 
 <p align="center">
-  <img src="docs/assets/deploy.gif" width="80%" alt="sim2real deploy rig: camera over the WUJI Hand1.0 + jig, MuJoCo mirror viewer on the right" />
+  <img src="docs/assets/deploy.gif" width="80%" alt="sim2real deploy rig: camera over the Wuji Hand + jig, MuJoCo mirror viewer on the right" />
 </p>
 
-The deploy bridge runs the exported ONNX policy on the real WUJI Hand1.0. A vision module tracks an ArUco-tagged cube (anchored to a wrist AprilTag world frame) via a USB camera and publishes the pose over ZMQ; `play_real` subscribes to that pose, runs ONNX inference, and closes the loop by sending commands to the hand driver.
+The deploy bridge runs the exported ONNX policy on the real Wuji Hand. A vision module tracks an ArUco-tagged cube (anchored to a wrist AprilTag world frame) via a USB camera and publishes the pose over ZMQ; `play_real` subscribes to that pose, runs ONNX inference, and closes the loop by sending commands to the hand driver.
 
 > **No training needed to deploy.** Download the pre-trained `policy.onnx` + `policy_config.json` from [Releases](https://github.com/wuji-technology/wuji-mjlab/releases) and pass the `policy.onnx` path as `--ckpt` below. The released policy is what produces the demo GIF above.
 
@@ -169,14 +169,14 @@ Three-layer stack: this repo (tasks + deploy) → [mjlab](https://github.com/muj
 
 ### Reorient task (`src/wuji_mjlab/tasks/reorient/`)
 
-Full SO(3) in-hand reorientation with the WujiHand. Files:
+Full SO(3) in-hand reorientation with the Wuji Hand. Files:
 
 | File | Role |
 |---|---|
 | `reorient_env_cfg.py` | Top-level `ManagerBasedRlEnvCfg` factory |
 | `reorient_terms.py` | All event / termination / reward / DR terms (the **task design** lives here, not in robot bindings) |
 | `reorient_constants.py` | Initial pose constants (palm-up R_y(-90°), cube above palm) |
-| `config/wuji_hand/` | Robot-binding layer: thin wiring of the task design onto WUJI Hand1.0 (20-DoF dexterous hand) |
+| `config/wuji_hand/` | Robot-binding layer: thin wiring of the task design onto Wuji Hand (20-DoF dexterous hand) |
 | `mdp/` | Observations, commands, actions specific to reorientation |
 | `tooling/` | Eval entrypoints + ONNX export |
 
@@ -225,6 +225,7 @@ This project builds on the following open-source projects:
 - [Jielin Wu](https://github.com/AIRJASON50)
 - [Shenzhe Yao](https://github.com/LeopoldYao)
 - [Han Yang](https://github.com/yanghan-a)
+- [Li Chengmeng](https://github.com/AsahelLee)
 
 ## Citation
 

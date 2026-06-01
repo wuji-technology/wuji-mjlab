@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Wuji Technology Co., Ltd.
-"""rsl_rl backend configuration for the WUJI Hand1.0 Reorient task.
+"""rsl_rl backend configuration for the Wuji Hand Reorient task.
 
 Exposes the PPO runner cfg factory consumed by the task registration in
 ``config/wuji_hand/__init__.py``. RL configs are kept under a backend-specific

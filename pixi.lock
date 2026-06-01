@@ -922,29 +922,29 @@ packages:
   - opencv-python>=3.0 ; extra == 'other'
   - matplotlib>=3.0 ; extra == 'other'
   - moviepy>=1.0.0 ; extra == 'other'
+  - moviepy>=1.0.0 ; extra == 'testing'
+  - matplotlib>=3.0 ; extra == 'testing'
+  - mujoco==2.2 ; extra == 'testing'
+  - box2d-py==2.3.5 ; extra == 'testing'
   - pygame==2.1.0 ; extra == 'testing'
   - lz4>=3.1.0 ; extra == 'testing'
-  - mujoco==2.2 ; extra == 'testing'
-  - swig==4.* ; extra == 'testing'
-  - box2d-py==2.3.5 ; extra == 'testing'
   - mujoco-py>=2.1,<2.2 ; extra == 'testing'
-  - imageio>=2.14.1 ; extra == 'testing'
+  - swig==4.* ; extra == 'testing'
   - opencv-python>=3.0 ; extra == 'testing'
-  - matplotlib>=3.0 ; extra == 'testing'
-  - moviepy>=1.0.0 ; extra == 'testing'
+  - imageio>=2.14.1 ; extra == 'testing'
   - pytest==7.0.1 ; extra == 'testing'
+  - matplotlib>=3.0 ; extra == 'all'
+  - pytest==7.0.1 ; extra == 'all'
+  - mujoco==2.2 ; extra == 'all'
+  - box2d-py==2.3.5 ; extra == 'all'
   - pygame==2.1.0 ; extra == 'all'
   - lz4>=3.1.0 ; extra == 'all'
-  - ale-py~=0.8.0 ; extra == 'all'
-  - mujoco==2.2 ; extra == 'all'
-  - swig==4.* ; extra == 'all'
-  - box2d-py==2.3.5 ; extra == 'all'
   - mujoco-py>=2.1,<2.2 ; extra == 'all'
-  - imageio>=2.14.1 ; extra == 'all'
-  - opencv-python>=3.0 ; extra == 'all'
-  - matplotlib>=3.0 ; extra == 'all'
+  - ale-py~=0.8.0 ; extra == 'all'
   - moviepy>=1.0.0 ; extra == 'all'
-  - pytest==7.0.1 ; extra == 'all'
+  - opencv-python>=3.0 ; extra == 'all'
+  - swig==4.* ; extra == 'all'
+  - imageio>=2.14.1 ; extra == 'all'
   requires_python: '>=3.6'
 - pypi: https://files.pythonhosted.org/packages/41/55/55d157aa8693090954fc9639bf27218240517c3bc7afa6e97412da6ebfd9/gym_notices-0.1.0-py3-none-any.whl
   name: gym-notices
@@ -2897,7 +2897,7 @@ packages:
 - pypi: ./
   name: wuji-mjlab
   version: 0.1.0
-  sha256: f6001d765568c1e6e2398bb8644e2eb6b7f1403a89042d6edc7315f061514aaf
+  sha256: eb4328304b5f5ab0eebd90a2d011e434016d08c9759b8e90abc2c62aa2379f2d
   requires_python: '>=3.11'
 - pypi: https://files.pythonhosted.org/packages/5d/58/cbe3c7107f45b2ec54cf26dd82bf0791d36576d214892e3bf6692e63bb29/wujihandpy-1.5.1-cp311-cp311-manylinux_2_28_x86_64.whl
   name: wujihandpy

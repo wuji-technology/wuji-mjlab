@@ -18,7 +18,7 @@
 - `reorient_terms.py` — 由 `make_reorient_env_cfg` 使用的 `build_reorient_*` 构造器
 - `reorient_env_cfg.py` — 薄装配层；暴露 `make_reorient_env_cfg()`
 - `reorient_constants.py` — task 级公开常量（如 `TAG_IN_PALM_POS`、`TAG_IN_PALM_QUAT_WXYZ`）
-- `config/wuji_hand/` — WUJI Hand1.0 硬件 overlay，下面带后端专属子目录（`rsl_rl/`）
+- `config/wuji_hand/` — Wuji Hand 硬件 overlay，下面带后端专属子目录（`rsl_rl/`）
   - `env_cfgs.py` — env config + play overlay（`_PLAY_DISABLED_EVENTS`）
   - `rsl_rl/ppo.py` — `wuji_hand_reorient_ppo_runner_cfg()`（RSL-RL PPO）
   - `__init__.py` — 注册 `WujiHand_Reorient`（release）与
@@ -35,7 +35,7 @@
 
 **Env config**:
 - `make_reorient_env_cfg()` → `ManagerBasedRlEnvCfg`（与机器人无关的基线）
-- `wuji_hand_reorient_env_cfg(play: bool = False)` → WUJI Hand1.0 硬件 overlay
+- `wuji_hand_reorient_env_cfg(play: bool = False)` → Wuji Hand 硬件 overlay
 
 **RL config**:
 - `wuji_hand_reorient_ppo_runner_cfg()` → RSL-RL PPO runner cfg

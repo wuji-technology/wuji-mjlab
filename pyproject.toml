@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "wuji-mjlab"
 version = "0.1.0"
-description = "Reinforcement learning and sim-to-real deployment for the WUJI Hand dexterous manipulation platform, built on mjlab and MuJoCo Warp."
+description = "Reinforcement learning and sim-to-real deployment for the Wuji Hand dexterous manipulation platform, built on mjlab and MuJoCo Warp."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"

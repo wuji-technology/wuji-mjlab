@@ -125,7 +125,7 @@ def torque_saturation_ratio(
   torques = robot.data.actuator_force[:, asset_cfg.actuator_ids]
   # force_limit lives on individual actuator instances, not Entity.
   # NOTE: cat order assumes robot.actuators matches actuator_ids index space.
-  # Safe for single actuator group (WUJI Hand1.0); may need reorder for multi-group.
+  # Safe for single actuator group (Wuji Hand); may need reorder for multi-group.
   limits_list = [getattr(act, "force_limit", None) for act in robot.actuators]
   if any(lim is None for lim in limits_list):
     return torch.zeros(env.num_envs, device=env.device)

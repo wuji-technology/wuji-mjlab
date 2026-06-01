@@ -105,7 +105,7 @@ def _apply_deploy_obs_overrides(cfg) -> None:
 
 
 def attach_wuji_hand_entities(cfg) -> None:
-    """Copy the entity attach block from the training wuji_hand_reorient_env_cfg (WUJI Hand1.0).
+    """Copy the entity attach block from the training wuji_hand_reorient_env_cfg (Wuji Hand).
 
     Not copied: reward overrides (finger_collision/palm_detach), play branch.
     When the training-side attach logic changes, this function must be kept in sync.
@@ -126,7 +126,7 @@ def make_real_hand_env_cfg(
     """Construct deploy env cfg by trimming training cfg.
 
     Args:
-        robot_variant: only "wuji_hand" (WUJI Hand1.0) is supported for now; other
+        robot_variant: only "wuji_hand" (Wuji Hand) is supported for now; other
             models can be added in the future.
         policy_config: optional dict from ONNX sidecar JSON
             (``ONNXPolicy.config``). When provided, model-intrinsic params

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Wuji Technology Co., Ltd.
-"""WujiHand hardware utilities.
+"""Wuji Hand hardware utilities.
 
 Single entry-point for low-level hand operations. Provides two subcommands:
 
@@ -169,7 +169,7 @@ def cmd_check(_args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="WujiHand hardware utilities (home / check).",
+        description="Wuji Hand hardware utilities (home / check).",
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
     p_home = sub.add_parser(

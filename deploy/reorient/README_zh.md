@@ -2,7 +2,7 @@
 
 [English version](README.md)
 
-`WujiHand_Reorient` 的 sim2real 桥：基于 ArUco（cube 面）+ AprilTag（手腕）的方块追踪 + 物理 WujiHand 上的闭环策略控制。
+`WujiHand_Reorient` 的 sim2real 桥：基于 ArUco（cube 面）+ AprilTag（手腕）的方块追踪 + 物理 Wuji Hand 上的闭环策略控制。
 
 ## 流水线
 

@@ -30,7 +30,7 @@ window, without dropping it.
 - `reorient_env_cfg.py` — thin assembler; exposes `make_reorient_env_cfg()`
 - `reorient_constants.py` — task-wide public constants
   (e.g. `TAG_IN_PALM_POS`, `TAG_IN_PALM_QUAT_WXYZ`)
-- `config/wuji_hand/` — WUJI Hand1.0 hardware overlay with a backend-specific subdir
+- `config/wuji_hand/` — Wuji Hand hardware overlay with a backend-specific subdir
   (`rsl_rl/`)
   - `env_cfgs.py` — env config + play overlay (`_PLAY_DISABLED_EVENTS`)
   - `rsl_rl/ppo.py` — `wuji_hand_reorient_ppo_runner_cfg()` (RSL-RL PPO)
@@ -55,7 +55,7 @@ window, without dropping it.
 
 **Env config**:
 - `make_reorient_env_cfg()` → `ManagerBasedRlEnvCfg` (robot-agnostic baseline)
-- `wuji_hand_reorient_env_cfg(play: bool = False)` → WUJI Hand1.0 hardware overlay
+- `wuji_hand_reorient_env_cfg(play: bool = False)` → Wuji Hand hardware overlay
 
 **RL config**:
 - `wuji_hand_reorient_ppo_runner_cfg()` → RSL-RL PPO runner cfg

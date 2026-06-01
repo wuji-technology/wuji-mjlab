@@ -12,7 +12,7 @@
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
 [![Stars](https://img.shields.io/github/stars/wuji-technology/wuji-mjlab?style=social)](https://github.com/wuji-technology/wuji-mjlab/stargazers)
 
-> WUJI Hand1.0 上的立方体手内翻转：基于 mjlab（底层物理由 mujoco-warp 提供 GPU 批量化）用 PPO 训练任意 SO(3) 目标姿态的策略，并通过 sim2real 桥在真机上做闭环部署。
+> Wuji Hand 上的立方体手内翻转：基于 mjlab（底层物理由 mujoco-warp 提供 GPU 批量化）用 PPO 训练任意 SO(3) 目标姿态的策略，并通过 sim2real 桥在真机上做闭环部署。
 
 <p align="center">
   <img src="docs/assets/sim.gif" width="45%" alt="sim reorient demo" />
@@ -23,7 +23,7 @@
 
 | 机器人 | 任务 ID | 预训练 checkpoint | 演示 |
 |---|---|---|---|
-| WUJI Hand1.0 | `WujiHand_Reorient` | [Latest release assets](https://github.com/wuji-technology/wuji-mjlab/releases/latest) | 上方 sim + real GIFs |
+| Wuji Hand | `WujiHand_Reorient` | [Latest release assets](https://github.com/wuji-technology/wuji-mjlab/releases/latest) | 上方 sim + real GIFs |
 
 从最新 release 拉取 checkpoint 和 CAD 包：
 
@@ -55,7 +55,7 @@ wuji-mjlab/
 - Linux x86_64
 - NVIDIA GPU，CUDA 12.8（支持 Blackwell sm_120 / RTX 50 系列）
 - [pixi](https://pixi.sh) ≥ 0.66（CI 用的版本）—— **唯一支持的安装方式**
-- 用于 sim2real 部署：WUJI Hand1.0 硬件 + Hikrobot USB-3 相机 + Hikvision MVS SDK + 3D 打印的 ArUco 标定 cube + 手腕 AprilTag——详见 [`docs/sim2real/setup_zh.md`](docs/sim2real/setup_zh.md)
+- 用于 sim2real 部署：Wuji Hand 硬件 + Hikrobot USB-3 相机 + Hikvision MVS SDK + 3D 打印的 ArUco 标定 cube + 手腕 AprilTag——详见 [`docs/sim2real/setup_zh.md`](docs/sim2real/setup_zh.md)
 
 > ⚠️ **注意**：本仓库**仅支持 pixi**。`conda + pip install -e .` 未经测试且不受支持。
 
@@ -132,10 +132,10 @@ pixi run python -m wuji_mjlab.tasks.reorient.scripts.view_task WujiHand_Reorient
 ## Sim-to-real
 
 <p align="center">
-  <img src="docs/assets/deploy.gif" width="80%" alt="sim2real 部署装置：相机俯拍 WUJI Hand1.0 + 治具，右侧 MuJoCo mirror viewer 同步" />
+  <img src="docs/assets/deploy.gif" width="80%" alt="sim2real 部署装置：相机俯拍 Wuji Hand + 治具，右侧 MuJoCo mirror viewer 同步" />
 </p>
 
-部署桥在真机 WUJI Hand1.0 上跑导出的 ONNX 策略：视觉模块用 USB 相机追踪带 ArUco 标签的立方体（以手腕 AprilTag 定义世界坐标系），把位姿通过 ZMQ 发布出去；`play_real` 订阅位姿、跑 ONNX 推理，把动作命令闭环下发到手部驱动。
+部署桥在真机 Wuji Hand 上跑导出的 ONNX 策略：视觉模块用 USB 相机追踪带 ArUco 标签的立方体（以手腕 AprilTag 定义世界坐标系），把位姿通过 ZMQ 发布出去；`play_real` 订阅位姿、跑 ONNX 推理，把动作命令闭环下发到手部驱动。
 
 > **部署无需自己训。** 从 [Releases](https://github.com/wuji-technology/wuji-mjlab/releases) 下载预训练好的 `policy.onnx` + `policy_config.json`，把 `policy.onnx` 路径作为下面命令的 `--ckpt` 传入即可。上面 demo GIF 就是这个 release 策略跑出来的。
 
@@ -185,14 +185,14 @@ pixi run -e deploy play-real --ckpt <path-to.onnx>   # closed-loop control + mir
 
 ### Reorient 任务 (`src/wuji_mjlab/tasks/reorient/`)
 
-基于 WujiHand 的完整 SO(3) 手内重定向任务。文件分工：
+基于 Wuji Hand 的完整 SO(3) 手内重定向任务。文件分工：
 
 | 文件 | 作用 |
 |---|---|
 | `reorient_env_cfg.py` | 顶层 `ManagerBasedRlEnvCfg` 工厂 |
 | `reorient_terms.py` | 所有 event / termination / reward / DR terms（**任务设计**位于此处，而非机器人 binding 中） |
 | `reorient_constants.py` | 初始位姿常量（palm-up R_y(-90°)、cube 位于手掌上方） |
-| `config/wuji_hand/` | 机器人 binding 层：将任务设计精简地接入 WUJI Hand1.0（20 自由度灵巧手） |
+| `config/wuji_hand/` | 机器人 binding 层：将任务设计精简地接入 Wuji Hand（20 自由度灵巧手） |
 | `mdp/` | 重定向任务特有的观测、命令、动作 |
 | `tooling/` | 评测入口 + ONNX 导出 |
 
@@ -241,6 +241,7 @@ pixi run pre-commit install
 - [Jielin Wu](https://github.com/AIRJASON50)
 - [Shenzhe Yao](https://github.com/LeopoldYao)
 - [Han Yang](https://github.com/yanghan-a)
+- [Li Chengmeng](https://github.com/AsahelLee)
 
 ## 引用
 

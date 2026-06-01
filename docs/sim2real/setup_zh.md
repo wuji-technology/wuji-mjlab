@@ -1,14 +1,14 @@
-# Sim-to-real 部署 — WujiHand Reorient
+# Sim-to-real 部署 — Wuji Hand Reorient
 
 [English version](setup.md)
 
-本指南介绍在物理 WujiHand 上运行训练好的 `WujiHand_Reorient` ONNX 策略所需的**硬件侧**配置。关于**软件管线**（ZMQ 拓扑、observer 架构、ONNX 策略加载），参见 [`deploy/reorient/README_zh.md`](../../deploy/reorient/README_zh.md)。
+本指南介绍在物理 Wuji Hand 上运行训练好的 `WujiHand_Reorient` ONNX 策略所需的**硬件侧**配置。关于**软件管线**（ZMQ 拓扑、observer 架构、ONNX 策略加载），参见 [`deploy/reorient/README_zh.md`](../../deploy/reorient/README_zh.md)。
 
 完成本指南后，你将获得：
 - 一个经标定的相机，以已知内参观察工作区
 - 一个 3D 打印的、带 ArUco 标签的标定 cube
 - 一个手腕侧 AprilTag，用于定义世界（手腕）坐标系
-- 安装在治具上、位于相机视野内的 WujiHand
+- 安装在治具上、位于相机视野内的 Wuji Hand
 - 针对**你的**装置填好的 `camera.yaml` + `cube_tags.json`
 - 可正常运行的 `pixi run -e deploy vision` + `play-real` 管线
 
@@ -33,7 +33,7 @@
 - **相机安装支架 / 三脚架**：任何刚性夹具，能将相机固定在距手掌约 350 mm 上方，且在标定（第 6 节）和 rollout 之间不发生位移。要求：1/4"-20 标准三脚架螺纹或等效 C-mount 支架；垂直行程 ≥ 400 mm；具备振动阻尼（USB 线张力下不变形）；优先选用固定高度的夹具而非伺服机械臂。
 - **手腕 AprilTag 贴纸**：1 张 AprilTag36h11 ID 0，外尺寸 48 mm × 48 mm（匹配 [`deploy/reorient/scripts/cube_world_observer.py`](../../deploy/reorient/scripts/cube_world_observer.py) 中硬编码的 `WORLD_TAG_SIZE = 0.048`；该常量不通过 yaml 暴露，如需修改请直接改脚本）。打印在哑光 vinyl 或覆膜纸上以避免相机眩光；白底黑墨；安装前用卡尺校验打印外尺寸 — 任何缩放误差都会直接传播到位姿估计。打印 / 购买的具体流程以及尺寸约定见第 4 节。
   （cube 的 24 块 ArUco 贴片**不是**贴纸 — 它们通过双材料打印直接成形于随包发布的 Bambu Lab `.3mf` 文件中；参见 3.1 节。）
-- **WUJI Hand1.0 右手**。请直接联系 Wuji Technology；`wujihandpy==1.5.1` 要求与 `lib/hand_driver.py` 匹配的 WUJI Hand1.0 固件版本。Host 端通过一根 USB 线直连（hand 内部 STM32 暴露 USB CDC 接口，vendor ID 0483）。
+- **Wuji Hand 右手**。请直接联系 Wuji Technology；`wujihandpy==1.5.1` 要求与 `lib/hand_driver.py` 匹配的 Wuji Hand 固件版本。Host 端通过一根 USB 线直连（hand 内部 STM32 暴露 USB CDC 接口，vendor ID 0483）。
 - **手部安装治具** — 3D 打印的 PLA 底座，用螺丝固定在铝合金蜂窝光学平板上。详细 BOM 和装配步骤见 5.1 节；CAD 文件随 release 附件提供（见 [Releases](https://github.com/wuji-technology/wuji-mjlab/releases)）。
 - **标定 cube** — 3D 打印的 54 mm 棱长实心立方体，6 个面已嵌入 24 块
   ArUco 标签（与 `cube_tags.json` 匹配）。打印细节见第 3 节；CAD 文件
@@ -136,7 +136,7 @@ python3 -c "import sys; sys.path.insert(0, '/opt/MVS/Samples/64/Python'); from M
 
 ### 2.3 Deploy 环境
 
-从仓库根目录执行 `pixi install -e deploy` 会拉取（参见 [`pixi.toml`](../../pixi.toml) `[feature.deploy.pypi-dependencies]`）：`opencv-contrib-python>=4.13`（ArUco + IPPE）、`pupil-apriltags>=1.0`（手腕标签）、`pyzmq>=27.0`（cube/goal pub-sub）、`glfw>=2.10`（passive MuJoCo viewer）、`wujihandpy==1.5.1`（WUJI Hand1.0 驱动）、`pyyaml>=6.0`。冒烟测试：
+从仓库根目录执行 `pixi install -e deploy` 会拉取（参见 [`pixi.toml`](../../pixi.toml) `[feature.deploy.pypi-dependencies]`）：`opencv-contrib-python>=4.13`（ArUco + IPPE）、`pupil-apriltags>=1.0`（手腕标签）、`pyzmq>=27.0`（cube/goal pub-sub）、`glfw>=2.10`（passive MuJoCo viewer）、`wujihandpy==1.5.1`（Wuji Hand 驱动）、`pyyaml>=6.0`。冒烟测试：
 
 ```bash
 pixi run -e deploy python -c "import cv2, pupil_apriltags, zmq, wujihandpy; print(cv2.__version__)"
@@ -283,9 +283,9 @@ Cube observer 通过一个刚性安装在手腕板上的 AprilTag36h11 标签来
 
 ### 5.1 手部安装
 
-WujiHand 安装于一个 3D 打印治具上，治具用螺丝固定在铝合金蜂窝光学平板上。该治具让手腕 AprilTag 暴露给相机，并在手掌上方留出约 20 cm 的空隙以容纳 cube。请将 Hand 的 USB 线从手腕后方走线，避开相机视野。
+Wuji Hand 安装于一个 3D 打印治具上，治具用螺丝固定在铝合金蜂窝光学平板上。该治具让手腕 AprilTag 暴露给相机，并在手掌上方留出约 20 cm 的空隙以容纳 cube。请将 Hand 的 USB 线从手腕后方走线，避开相机视野。
 
-![灵巧手在治具上的侧视图 — 组装好的 WUJI Hand1.0 安装在 3D 打印治具上，手腕 AprilTag 装在顶部](images/hand-jig-side.jpg)
+![灵巧手在治具上的侧视图 — 组装好的 Wuji Hand 安装在 3D 打印治具上，手腕 AprilTag 装在顶部](images/hand-jig-side.jpg)
 
 **硬件清单**：
 
@@ -300,8 +300,8 @@ WujiHand 安装于一个 3D 打印治具上，治具用螺丝固定在铝合金�
 1. 在支持 PLA 的 FDM 打印机上打印 `base.3mf`（来自 release 附件）— 文件内已捆绑 Bambu Lab 切片配置。
 2. 把底座放置在铝合金蜂窝板上，使手腕安装托架朝前。底座有 4 个 φ6.60 mm 通孔 + φ11 mm 沉头孔，与蜂窝板上的 M6 螺纹阵列对齐。
 3. 用 4 颗 M6 内六角螺丝穿过沉头孔，将底座拧紧到蜂窝板上。
-4. 装配完成后整体高度约 147 mm，并将 WujiHand 后倾 10°，使静止状态下手腕标签朝向相机。
-5. 把 WujiHand 卡入托架；将 Hand 的 USB 线从手腕后方走线，避开相机视野。
+4. 装配完成后整体高度约 147 mm，并将 Wuji Hand 后倾 10°，使静止状态下手腕标签朝向相机。
+5. 把 Wuji Hand 卡入托架；将 Hand 的 USB 线从手腕后方走线，避开相机视野。
 
 ### 5.2 相机安装
 

@@ -24,7 +24,7 @@ including decisions that conceptually belong at the robot-binding layer
   fingertip's link4 mesh belongs in the soft-pad zone with the rest of
   the thumb, not in a separate fingertip bucket.
 
-The WUJI Hand1.0 right-hand asset is therefore baked in here. A second
+The Wuji Hand right-hand asset is therefore baked in here. A second
 robot binding (e.g. left hand) would need either a parallel terms module
 or an explicit override at the binding site.
 """
@@ -206,7 +206,7 @@ def build_reorient_sensors(
 ) -> tuple[SensorCfg, ...]:
   """Build the 7 contact sensors required by the reorient task.
 
-  Hardcoded WUJI Hand1.0 right-hand: ``finger_collision`` filters against
+  Hardcoded Wuji Hand right-hand: ``finger_collision`` filters against
   the ``right_palm_link`` subtree.
   """
   tip_object_contact = ContactSensorCfg(

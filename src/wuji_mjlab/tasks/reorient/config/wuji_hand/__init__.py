@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Wuji Technology Co., Ltd.
-"""WUJI Hand1.0 reorient task registration."""
+"""Wuji Hand reorient task registration."""
 
 from mjlab.tasks.registry import register_mjlab_task
 
