@@ -467,11 +467,17 @@ behind the wrist, out of the camera's field of view.
 
 | # | Part / spec | Component | Qty | Material | Finish | Type |
 |---|---|---|---|---|---|---|
-| 1 | 350 × 200 × 13 mm | Aluminum honeycomb breadboard | 1 | AL6061-T6 | Anodized black | Off-the-shelf |
+| 1 | 350 × 200 × 13 mm | Aluminum honeycomb breadboard | 1 | AL6061-T6 (SS) | Anodized black | Off-the-shelf |
 | 2 | see `base.3mf` (release attachment) | 3D-printed base | 1 | PLA | — | Print |
 
 Plus 4× M6 socket-head screws (length depending on breadboard
 thickness — 16 mm typical) for fixing the base to the breadboard.
+
+The breadboard is a standard catalog part — a 350 × 200 × 13 mm
+AL6061-T6 aluminum honeycomb plate, anodized black, drilled with an
+**M6 tapped through-hole grid on a 25 mm pitch** (25 mm edge margin,
+91 holes in a 13 × 7 array). Any plate matching that grid substitutes;
+no custom machining is needed on the breadboard itself.
 
 **Assembly**:
 1. Print `base.3mf` (from the release attachment) on a PLA-capable
@@ -486,6 +492,32 @@ thickness — 16 mm typical) for fixing the base to the breadboard.
    back by 10° so the wrist tag faces the camera at rest.
 5. Strap the Wuji Hand into the cradle; route the Hand's USB cable
    behind the wrist out of camera view.
+
+**Dimensioned reference.** The release attachment's
+`hardware/hand-jig/` directory ships `assembly.pdf` (the dimensioned
+assembly drawing), `assembly.step` (the full STEP solid — open it in
+any CAD viewer to measure or remix) and `base.3mf` (the printable
+base). If you reproduce from scratch rather than from the shipped CAD,
+these are the key numbers off the drawing (all mm):
+
+| Dimension | Value |
+|---|---|
+| Assembled height (base + breadboard) | **146.7 mm** |
+| Hand back-tilt at rest | **10.0°** |
+| Total assembly mass | ~14.3 kg (dominated by the breadboard) |
+| Breadboard | 350 × 200 × 13 mm, AL6061-T6, anodized black |
+| Breadboard hole grid | 91 × M6 tapped through-holes, 25 mm pitch, 13 × 7 array |
+| 3D-printed base bounding box | ~90 (W) × 93 (D) × 134 (H) mm |
+| Base → breadboard fixing | 4 × M6 SHCS through φ6.60 clearance holes, φ11.0 ↧ 6.8 counterbore (head recess); 2 × φ3.2 locating holes |
+| Base print profile | PLA, 0.2 mm layer, 3 walls, 50 % infill, 0.4 mm nozzle (Bambu profile bundled in `base.3mf`) |
+
+General fabrication notes from the drawing: untoleranced dimensions
+follow **GB/T1804-2000-F** (e.g. ±0.10 over 18–50 mm, ±0.20 over
+120–250 mm) with an Ra 3.2 unspecified surface finish; deburr/chamfer
+all sharp edges; the part is RoHS 2.0 / REACH compliant. Functionally,
+only the **10° back-tilt** and the **counterbore pattern** matter for
+camera framing and a flush bolt-down — the rest is reproduction
+convenience.
 
 ### 5.2 Camera mounting
 
