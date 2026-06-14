@@ -11,6 +11,7 @@ from .event_impl.episode import (
   reset_disturbance_caches,
   reset_joint_acc_cache,
   reset_object_orientation,
+  reset_object_pose_in_palm,
 )
 from .event_impl.joint_reset import (
   num_selected_bodies,
@@ -26,6 +27,7 @@ from .event_impl.randomization import (
   randomize_encoder_bias,
   randomize_field,
   randomize_geom_size_uniform,
+  randomize_object_friction_scale,
   randomize_pd_gains,
 )
 
@@ -40,11 +42,13 @@ __all__ = [
   "randomize_encoder_bias",
   "randomize_field",
   "randomize_geom_size_uniform",
+  "randomize_object_friction_scale",
   "randomize_pd_gains",
   "reset_disturbance_caches",
   "reset_joint_acc_cache",
   "reset_joints_within_limits_range",
   "reset_object_orientation",
+  "reset_object_pose_in_palm",
   "resolve_joint_velocity_limits",
   "resolve_random_bounds",
   "sample_and_clip",

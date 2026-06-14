@@ -45,6 +45,11 @@ where = ["src"]
 [tool.setuptools.package-data]
 wuji_mjlab = [
   "assets/README.md",
+  "assets/**/*.xml",
+  "assets/**/*.obj",
+  "assets/**/*.STL",
+  "assets/**/*.stl",
+  "assets/**/*.png",
 ]
 
 [tool.pytest.ini_options]

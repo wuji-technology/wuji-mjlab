@@ -113,28 +113,24 @@ class ObsBuilder:
   term-major ordering: [term_A_t0..term_A_tH, term_B_t0..term_B_tH, ...]
 
   Obs terms (matching reorient_env_cfg.py policy group):
-    1. noisy_joint_angles  (20,) × H=1 = 20   — joint_pos_limit_normalized
-    2. qpos_error          (20,) × H=1 = 20   — joint_pos_target_error
+    1. noisy_joint_angles  (A,) × H=1 = A    — joint_pos_limit_normalized
+    2. qpos_error          (A,) × H=1 = A    — joint_pos_target_error
     3. cube_pos_in_tag      (3,) × H=1 =  3   — cube_pos_in_tag (absolute tag frame)
     4. cube_ori_error       (6,) × H=1 =  6   — goal_rot_err_6d
-    5. action_history      (20,) × H=1 = 20   — previous_raw_action
-
-  Total: 20 + 20 + 3 + 6 + 20 = 69
+    5. action_history      (A,) × H=1 = A    — previous_raw_action
   """
 
-  # (dim) per term — history_length set per-instance from training config
-  _TERM_DIMS = {
-    "joint_angles": 20,
-    "qpos_error": 20,
-    "cube_pos_in_tag": 3,
-    "cube_ori_error": 6,
-    "action_history": 20,
-  }
-
-  def __init__(self, history_length: int = 1):
+  def __init__(self, history_length: int = 1, action_dim: int = 20):
+    term_dims = {
+      "joint_angles": action_dim,
+      "qpos_error": action_dim,
+      "cube_pos_in_tag": 3,
+      "cube_ori_error": 6,
+      "action_history": action_dim,
+    }
     # (dim, H) per term — all terms share the same history at the moment
     self.TERM_SPECS = {
-      name: (dim, history_length) for name, dim in self._TERM_DIMS.items()
+      name: (dim, history_length) for name, dim in term_dims.items()
     }
     self._buffers: dict[str, deque] = {}
     self._init_buffers()
@@ -231,6 +227,7 @@ class EvalConfig:
   cube_edge_m: float | None = None
   json_output: Path | None = None
   warmup_time_s: float = 0.4
+  task_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -274,6 +271,7 @@ class EvalResult:
         "cube_edge_m": cfg.cube_edge_m,
         "json_output": str(cfg.json_output) if cfg.json_output is not None else None,
         "warmup_time_s": cfg.warmup_time_s,
+        "task_id": cfg.task_id,
       },
       "onnx_path_resolved": str(self.onnx_path_resolved),
       "success_rate": self.success_rate,
@@ -314,11 +312,17 @@ def run_eval(config: EvalConfig) -> EvalResult:
     if config.cube_edge_m is not None
     else train_config.get("cube_edge_m")
   )
+  task_id = config.task_id or train_config.get("task_id") or "WujiHand_Reorient"
 
   # ----- Build scene -----
   sim_dt = train_config.get("sim_dt", 0.01)
   ctrl_dt = train_config.get("ctrl_dt", 0.05)
-  scene = build_reorient_scene(sim_dt=sim_dt, ctrl_dt=ctrl_dt, cube_edge_m=cube_edge_m)
+  scene = build_reorient_scene(
+    sim_dt=sim_dt,
+    ctrl_dt=ctrl_dt,
+    cube_edge_m=cube_edge_m,
+    task_id=task_id,
+  )
 
   # ----- Load ONNX policy -----
   print(f"Loading ONNX model: {onnx_path}")
@@ -333,7 +337,7 @@ def run_eval(config: EvalConfig) -> EvalResult:
   history_len = train_config.get("history_len", 1)
 
   # Validate obs size
-  obs_builder = ObsBuilder(history_length=history_len)
+  obs_builder = ObsBuilder(history_length=history_len, action_dim=scene.action_dim)
   expected_obs = obs_builder.obs_size
   if expected_obs != onnx_obs_size:
     print(f"ERROR: Expected obs size {expected_obs} but ONNX expects {onnx_obs_size}.")
@@ -376,7 +380,7 @@ def run_eval(config: EvalConfig) -> EvalResult:
     f"Hold:      {success_hold_steps} control steps ({success_hold_steps * ctrl_dt:.1f}s), switch delay={goal_switch_delay}"
   )
   print(f"Obs size:  {obs_builder.obs_size}")
-  print(f"Scene:     nq={scene.model.nq}, nu={scene.model.nu}")
+  print(f"Scene:     task={task_id}, nq={scene.model.nq}, nu={scene.model.nu}")
   print(f"Viewer:    {'disabled' if config.no_viewer else 'enabled'}")
   print(f"{'=' * 60}\n")
 
@@ -427,7 +431,7 @@ def run_eval(config: EvalConfig) -> EvalResult:
     need_reset = True
     # Persistent state across trials (carry forward on success, reset on drop/timeout)
     prev_target = scene.default_joint_pos.copy()
-    last_action = np.zeros(20, dtype=np.float32)
+    last_action = np.zeros(scene.action_dim, dtype=np.float32)
     episode_step = 0
 
     for trial in range(num_trials):
@@ -440,7 +444,7 @@ def run_eval(config: EvalConfig) -> EvalResult:
         reset_scene(scene)
         obs_builder.reset()
         prev_target = scene.default_joint_pos.copy()
-        last_action = np.zeros(20, dtype=np.float32)
+        last_action = np.zeros(scene.action_dim, dtype=np.float32)
         episode_step = 0
 
       # Set random goal (>90 deg from current cube orientation)
@@ -757,6 +761,11 @@ def _parse_cli_args(argv: list[str] | None = None) -> argparse.Namespace:
     default=None,
     help="If set, write structured EvalResult to this path as JSON.",
   )
+  parser.add_argument(
+    "--task-id",
+    default=None,
+    help="Override task id for standalone scene construction.",
+  )
   return parser.parse_args(argv)
 
 
@@ -774,6 +783,7 @@ def _config_from_args(args: argparse.Namespace) -> EvalConfig:
     ema_alpha=args.ema_alpha,
     cube_edge_m=args.cube_edge_m,
     json_output=args.json_output,
+    task_id=args.task_id,
   )
 
 

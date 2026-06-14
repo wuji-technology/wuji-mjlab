@@ -9,6 +9,7 @@ from mjlab.envs.mdp.dr.geom import _recompute_geom_bounds
 from mjlab.managers.event_manager import RecomputeLevel, requires_model_fields
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 
+from wuji_mjlab.tasks.reorient.mdp.curriculums import get_curriculum_value
 from wuji_mjlab.tasks.reorient.mdp.event_utils import resolve_env_ids
 
 _DEFAULT_ROBOT_CFG = SceneEntityCfg("robot")
@@ -211,6 +212,40 @@ def randomize_encoder_bias(
   asset_cfg: SceneEntityCfg = _DEFAULT_ROBOT_CFG,
 ) -> None:
   dr.encoder_bias(env, env_ids, bias_range=bias_range, asset_cfg=asset_cfg)
+
+
+@requires_model_fields("geom_friction")
+def randomize_object_friction_scale(
+  env,
+  env_ids,
+  asset_cfg: SceneEntityCfg = SceneEntityCfg("object", geom_names=("cube",)),
+  scale_range: tuple[float, float] = (0.7, 1.3),
+  curriculum_term: str = "adaptive_episode",
+) -> None:
+  """Randomize object sliding friction around nominal, gated by curriculum."""
+  env_ids = resolve_env_ids(env, env_ids)
+  if env_ids.numel() == 0:
+    return
+
+  progress = (
+    get_curriculum_value(env, curriculum_term, 0.0) if curriculum_term else 1.0
+  )
+  progress = max(min(float(progress), 1.0), 0.0)
+  low = 1.0 - (1.0 - float(scale_range[0])) * progress
+  high = 1.0 + (float(scale_range[1]) - 1.0) * progress
+
+  asset = env.scene[asset_cfg.name]
+  geom_ids = asset.indexing.geom_ids[asset_cfg.geom_ids].long()
+  default_friction = _get_default_field_values(env, "geom_friction", env_ids, geom_ids)
+  scales = torch.empty(env_ids.numel(), geom_ids.numel(), device=env.device).uniform_(
+    low,
+    high,
+  )
+
+  env_grid, geom_grid = torch.meshgrid(env_ids.long(), geom_ids, indexing="ij")
+  env.sim.model.geom_friction[env_grid, geom_grid, 0] = (
+    default_friction[..., 0] * scales
+  )
 
 
 @requires_model_fields("geom_size", "geom_rbound", "geom_aabb")

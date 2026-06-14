@@ -14,7 +14,6 @@ from pathlib import Path
 
 import mjlab
 import tyro
-
 import wuji_mjlab.tasks  # noqa: F401
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
@@ -125,6 +124,7 @@ def _run_train(task_id: str, cfg: TrainConfig, log_dir: Path) -> None:
 
   agent_cfg = asdict(cfg.agent)
   env_cfg = asdict(cfg.env)
+  env_cfg["task_id"] = task_id
 
   runner_cls = load_runner_cls(task_id)
   if runner_cls is None:

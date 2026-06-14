@@ -8,7 +8,7 @@ import torch
 from mjlab.entity import Entity
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.sensor import ContactSensor
-from mjlab.utils.lab_api.math import quat_error_magnitude
+from mjlab.utils.lab_api.math import quat_apply, quat_error_magnitude
 
 from wuji_mjlab.tasks.reorient.mdp.event_impl.state import get_reorient_event_state
 from wuji_mjlab.utils.reward_decorators import curriculum_scaled
@@ -85,6 +85,64 @@ _DEFAULT_OBJECT_CFG = SceneEntityCfg("object")
 
 
 # --- Dense rewards (× step_dt) ---
+
+
+def _resolve_first_body_id(asset: Entity, cfg: SceneEntityCfg) -> int:
+  body_ids = cfg.body_ids
+  if not isinstance(body_ids, slice):
+    if isinstance(body_ids, torch.Tensor):
+      return int(body_ids[0].item())
+    return int(body_ids[0])
+
+  body_names = cfg.body_names
+  if body_names is None:
+    raise ValueError(
+      f"SceneEntityCfg for entity '{cfg.name}' must specify body_names."
+    )
+  patterns = (body_names,) if isinstance(body_names, str) else tuple(body_names)
+  for pattern in patterns:
+    resolved, _ = asset.find_bodies(pattern)
+    if resolved:
+      return int(resolved[0])
+  raise ValueError(f"No body matched pattern {body_names} on entity '{cfg.name}'.")
+
+
+def repose_position_distance(
+  env,
+  cube_offset_in_palm: tuple[float, float, float],
+  object_cfg: SceneEntityCfg = _DEFAULT_OBJECT_CFG,
+  robot_cfg: SceneEntityCfg = _DEFAULT_ROBOT_CFG,
+) -> torch.Tensor:
+  """Distance from cube to the RevoLab repose in-hand position target."""
+  obj: Entity = env.scene[object_cfg.name]
+  robot: Entity = env.scene[robot_cfg.name]
+  palm_id = _resolve_first_body_id(robot, robot_cfg)
+  palm_pose_w = robot.data.body_link_pose_w[:, palm_id, :]
+  palm_pos_w = palm_pose_w[:, :3]
+  palm_quat_w = palm_pose_w[:, 3:7]
+  offset = torch.tensor(
+    cube_offset_in_palm, device=env.device, dtype=palm_pos_w.dtype
+  ).expand(env.num_envs, 3)
+  target_pos_w = palm_pos_w + quat_apply(palm_quat_w, offset)
+  return torch.norm(obj.data.root_link_pos_w - target_pos_w, p=2, dim=-1)
+
+
+def repose_inverse_orientation_reward(
+  env,
+  command_name: str = "reorient_command",
+  object_cfg: SceneEntityCfg = _DEFAULT_OBJECT_CFG,
+  rot_eps: float = 0.1,
+) -> torch.Tensor:
+  """RevoLab repose orientation reward: ``1 / (rot_error + rot_eps)``."""
+  obj: Entity = env.scene[object_cfg.name]
+  goal_quat = env.command_manager.get_term(command_name).goal_quat
+  rot_dist = quat_error_magnitude(obj.data.root_link_quat_w, goal_quat)
+  return 1.0 / (torch.abs(rot_dist) + rot_eps)
+
+
+def repose_action_l2_penalty(env) -> torch.Tensor:
+  """RevoLab repose action regularization: ``sum(actions ** 2)``."""
+  return torch.sum(torch.square(env.action_manager.action), dim=-1)
 
 
 @curriculum_scaled

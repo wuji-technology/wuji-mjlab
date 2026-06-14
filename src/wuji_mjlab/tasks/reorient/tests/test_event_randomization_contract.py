@@ -6,7 +6,10 @@ import torch
 from wuji_mjlab.tasks.reorient.mdp.event_impl.curriculum import (
   apply_friction_curriculum,
 )
-from wuji_mjlab.tasks.reorient.mdp.event_impl.randomization import randomize_field
+from wuji_mjlab.tasks.reorient.mdp.event_impl.randomization import (
+  randomize_field,
+  randomize_object_friction_scale,
+)
 from wuji_mjlab.tasks.reorient.tests.fakes import make_fake_event_env
 
 
@@ -37,3 +40,25 @@ def test_apply_friction_curriculum_reuses_startup_snapshot():
   apply_friction_curriculum(env, env_ids)
 
   assert torch.equal(env.sim.model.geom_friction[:, :3, 0], initial_robot_friction)
+
+
+def test_randomize_object_friction_scale_respects_curriculum_gate():
+  env = make_fake_event_env(num_envs=3)
+  env_ids = torch.arange(env.num_envs, dtype=torch.long)
+  object_geom_ids = env.scene["object"].indexing.geom_ids.long()
+
+  env.sim.model.geom_friction[:, object_geom_ids, 0] = 5.0
+  env.curriculum_manager._curriculum_state["adaptive_episode"] = {"value": 0.0}
+  randomize_object_friction_scale(env, env_ids)
+
+  assert torch.allclose(
+    env.sim.model.geom_friction[:, object_geom_ids, 0],
+    torch.ones((env.num_envs, object_geom_ids.numel()), device=env.device),
+  )
+
+  env.curriculum_manager._curriculum_state["adaptive_episode"] = {"value": 1.0}
+  randomize_object_friction_scale(env, env_ids)
+  sampled = env.sim.model.geom_friction[:, object_geom_ids, 0]
+
+  assert torch.all(sampled >= 0.7)
+  assert torch.all(sampled <= 1.3)

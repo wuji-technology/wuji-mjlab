@@ -28,13 +28,23 @@ _DEFAULT_ROBOT_CFG = SceneEntityCfg("robot")
 _DEFAULT_OBJECT_CFG = SceneEntityCfg("object")
 
 
-def _tag_in_palm_pose(device: torch.device | str, dtype: torch.dtype = torch.float32):
-  pos = torch.tensor(_TAG_IN_PALM_POS, device=device, dtype=dtype)
-  quat = torch.tensor(_TAG_IN_PALM_QUAT_WXYZ, device=device, dtype=dtype)
+def _tag_in_palm_pose(
+  device: torch.device | str,
+  dtype: torch.dtype = torch.float32,
+  tag_in_palm_pos: tuple[float, float, float] = _TAG_IN_PALM_POS,
+  tag_in_palm_quat: tuple[float, float, float, float] = _TAG_IN_PALM_QUAT_WXYZ,
+):
+  pos = torch.tensor(tag_in_palm_pos, device=device, dtype=dtype)
+  quat = torch.tensor(tag_in_palm_quat, device=device, dtype=dtype)
   return pos, quat
 
 
-def _palm_pose_to_tag_pose(palm_pos_w: torch.Tensor, palm_quat_w: torch.Tensor):
+def _palm_pose_to_tag_pose(
+  palm_pos_w: torch.Tensor,
+  palm_quat_w: torch.Tensor,
+  tag_in_palm_pos: tuple[float, float, float] = _TAG_IN_PALM_POS,
+  tag_in_palm_quat: tuple[float, float, float, float] = _TAG_IN_PALM_QUAT_WXYZ,
+):
   """Compose palm world pose with hardcoded tag-in-palm offset to get tag world pose.
 
   Args:
@@ -44,12 +54,12 @@ def _palm_pose_to_tag_pose(palm_pos_w: torch.Tensor, palm_quat_w: torch.Tensor):
   Returns:
     tag_pos_w (..., 3), tag_quat_w (..., 4) in world frame.
   """
-  tag_in_palm_pos, tag_in_palm_quat = _tag_in_palm_pose(
-    palm_pos_w.device, palm_pos_w.dtype
+  tag_in_palm_pos_t, tag_in_palm_quat_t = _tag_in_palm_pose(
+    palm_pos_w.device, palm_pos_w.dtype, tag_in_palm_pos, tag_in_palm_quat
   )
   shape = palm_pos_w.shape[:-1]
-  tag_in_palm_pos_b = tag_in_palm_pos.expand(*shape, 3)
-  tag_in_palm_quat_b = tag_in_palm_quat.expand(*shape, 4)
+  tag_in_palm_pos_b = tag_in_palm_pos_t.expand(*shape, 3)
+  tag_in_palm_quat_b = tag_in_palm_quat_t.expand(*shape, 4)
   tag_pos_w = palm_pos_w + quat_apply(palm_quat_w, tag_in_palm_pos_b)
   tag_quat_w = quat_mul(palm_quat_w, tag_in_palm_quat_b)
   return tag_pos_w, tag_quat_w
@@ -98,6 +108,8 @@ def cube_pos_in_tag(
   object_cfg: SceneEntityCfg = _DEFAULT_OBJECT_CFG,
   robot_cfg: SceneEntityCfg = _DEFAULT_PALM_CFG,
   injection_prob: float = 0.0,
+  tag_in_palm_pos: tuple[float, float, float] = _TAG_IN_PALM_POS,
+  tag_in_palm_quat: tuple[float, float, float, float] = _TAG_IN_PALM_QUAT_WXYZ,
 ) -> torch.Tensor:
   """Cube root position expressed in the tag frame.
 
@@ -117,7 +129,9 @@ def cube_pos_in_tag(
   palm_id = _resolve_palm_body_id(robot, robot_cfg)
   palm_pos_w = robot.data.body_link_pose_w[:, palm_id, :3]
   palm_quat_w = robot.data.body_link_pose_w[:, palm_id, 3:7]
-  tag_pos_w, tag_quat_w = _palm_pose_to_tag_pose(palm_pos_w, palm_quat_w)
+  tag_pos_w, tag_quat_w = _palm_pose_to_tag_pose(
+    palm_pos_w, palm_quat_w, tag_in_palm_pos, tag_in_palm_quat
+  )
 
   cube_pos_w = obj.data.root_link_pos_w
   cube_pos_tag = quat_apply_inverse(tag_quat_w, cube_pos_w - tag_pos_w)
@@ -137,6 +151,8 @@ def goal_rot_err_6d(
   object_cfg: SceneEntityCfg = _DEFAULT_OBJECT_CFG,
   robot_cfg: SceneEntityCfg = _DEFAULT_PALM_CFG,
   injection_prob: float = 0.0,
+  tag_in_palm_pos: tuple[float, float, float] = _TAG_IN_PALM_POS,
+  tag_in_palm_quat: tuple[float, float, float, float] = _TAG_IN_PALM_QUAT_WXYZ,
 ) -> torch.Tensor:
   """6D rotation error in tag frame: ``mat(cube_tag * goal_tag^-1)[3:9]``.
 
@@ -155,7 +171,9 @@ def goal_rot_err_6d(
   palm_id = _resolve_palm_body_id(robot, robot_cfg)
   palm_pos_w = robot.data.body_link_pose_w[:, palm_id, :3]
   palm_quat_w = robot.data.body_link_pose_w[:, palm_id, 3:7]
-  _, tag_quat_w = _palm_pose_to_tag_pose(palm_pos_w, palm_quat_w)
+  _, tag_quat_w = _palm_pose_to_tag_pose(
+    palm_pos_w, palm_quat_w, tag_in_palm_pos, tag_in_palm_quat
+  )
 
   tag_quat_inv = quat_inv(tag_quat_w)
   cube_in_tag = quat_mul(tag_quat_inv, obj.data.root_link_quat_w)

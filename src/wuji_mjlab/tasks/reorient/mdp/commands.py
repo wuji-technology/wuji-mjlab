@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable
 
 import torch
 from mjlab.entity import Entity
@@ -125,7 +125,7 @@ class InHandReorientCommand(CommandTerm):
     tag_rel_goal = random_quat_uniform(n, self.device)
     palm_quat_w = self.robot.data.body_link_pose_w[env_ids, self.palm_body_id, 3:7]
     tag_in_palm = torch.tensor(
-      _TAG_IN_PALM_QUAT_WXYZ, device=self.device, dtype=palm_quat_w.dtype
+      self.cfg.tag_in_palm_quat, device=self.device, dtype=palm_quat_w.dtype
     ).expand(n, 4)
     tag_quat_w = quat_mul(palm_quat_w, tag_in_palm)
     self.goal_quat_w[env_ids] = quat_mul(tag_quat_w, tag_rel_goal)
@@ -241,8 +241,11 @@ class InHandReorientCommand(CommandTerm):
     self,
     name: str,
     server: "viser.ViserServer",
-    get_env_idx,
+    get_env_idx: Callable[[], int],
+    on_change: Callable[[], None] | None = None,
+    request_action: Callable[[str, Any], None] | None = None,
   ) -> None:
+    del on_change, request_action
     self._visualization.create_gui(
       name=name,
       server=server,
@@ -299,6 +302,8 @@ class InHandReorientCommandCfg(CommandTermCfg):
   debug_vis: bool = False
   robot_entity_name: str = "robot"
   palm_body_pattern: str = ".*_palm_link"
+  tag_in_palm_pos: tuple[float, float, float] = (0.0262, 0.0, -0.0563)
+  tag_in_palm_quat: tuple[float, float, float, float] = _TAG_IN_PALM_QUAT_WXYZ
 
   def build(self, env) -> InHandReorientCommand:
     return InHandReorientCommand(self, env)

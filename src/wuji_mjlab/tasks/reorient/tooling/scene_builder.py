@@ -19,6 +19,12 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
+from wuji_mjlab.tasks.reorient.robot_bindings import (
+  REVO3_RIGHT_HAND_BINDING,
+  WUJI_RIGHT_HAND_BINDING,
+  ReorientRobotBinding,
+)
+
 _GOAL_VIS_Z_OFFSET = 0.15
 
 
@@ -128,17 +134,20 @@ def quat_unique(q: np.ndarray) -> np.ndarray:
 class SceneMetadata:
   model: mujoco.MjModel
   data: mujoco.MjData
-  joint_qpos_adr: np.ndarray  # (20,)
-  ctrl_ids: np.ndarray  # (20,)
+  joint_qpos_adr: np.ndarray
+  ctrl_ids: np.ndarray
   cube_qpos_adr: int  # freejoint qpos start
   cube_body_id: int
-  palm_body_id: int  # body index of robot/right_palm_link
+  palm_body_id: int
   goal_mocap_id: int  # mocap body index
-  default_joint_pos: np.ndarray  # (20,)
+  default_joint_pos: np.ndarray
   default_cube_pos: np.ndarray  # (3,) from keyframe
   default_cube_quat: np.ndarray  # (4,) wxyz from keyframe
-  soft_lower: np.ndarray  # (20,)
-  soft_upper: np.ndarray  # (20,)
+  soft_lower: np.ndarray
+  soft_upper: np.ndarray
+  robot_binding: ReorientRobotBinding
+  tag_in_palm_pos: np.ndarray
+  tag_in_palm_quat: np.ndarray
 
   # Timing
   sim_dt: float = 0.01
@@ -157,8 +166,12 @@ class SceneMetadata:
 
   @property
   def joint_pos(self) -> np.ndarray:
-    """Current joint positions (20,)."""
+    """Current joint positions."""
     return self.data.qpos[self.joint_qpos_adr].copy()
+
+  @property
+  def action_dim(self) -> int:
+    return int(self.default_joint_pos.shape[0])
 
   @property
   def palm_pos(self) -> np.ndarray:
@@ -171,6 +184,40 @@ class SceneMetadata:
     return self.data.xquat[self.palm_body_id].copy()
 
 
+def _resolve_scene_task(task_id: str | None):
+  normalized = task_id or "WujiHand_Reorient"
+  if normalized.startswith("Revo3RightHand"):
+    from wuji_mjlab.assets.robots.revo3_hand.revo3_hand_cfg import (
+      get_revo3_hand_cfg,
+    )
+    from wuji_mjlab.tasks.reorient.config.revo3_hand.env_cfgs import (
+      REVO3_REORIENT_CUBE_INIT_STATE,
+      REVO3_REORIENT_ROBOT_INIT_STATE,
+    )
+
+    return (
+      normalized,
+      REVO3_RIGHT_HAND_BINDING,
+      get_revo3_hand_cfg,
+      REVO3_REORIENT_ROBOT_INIT_STATE,
+      REVO3_REORIENT_CUBE_INIT_STATE,
+    )
+
+  from wuji_mjlab.assets.robots.wuji_hand.wuji_hand_cfg import get_wuji_hand_cfg
+  from wuji_mjlab.tasks.reorient.reorient_constants import (
+    REORIENT_CUBE_INIT_STATE,
+    REORIENT_ROBOT_INIT_STATE,
+  )
+
+  return (
+    normalized,
+    WUJI_RIGHT_HAND_BINDING,
+    get_wuji_hand_cfg,
+    REORIENT_ROBOT_INIT_STATE,
+    REORIENT_CUBE_INIT_STATE,
+  )
+
+
 # ---------------------------------------------------------------------------
 # Scene construction
 # ---------------------------------------------------------------------------
@@ -181,6 +228,7 @@ def build_reorient_scene(
   ctrl_dt: float = 0.05,
   soft_limit_factor: float = 0.9,
   cube_edge_m: float | None = None,
+  task_id: str | None = None,
 ) -> SceneMetadata:
   """Build a MuJoCo scene for reorient eval by composing robot + cube specs.
 
@@ -194,10 +242,9 @@ def build_reorient_scene(
   7. Compile, resolve indices
   """
   from wuji_mjlab.assets.objects.inhand_object.object_cfg import get_inhand_object_cfg
-  from wuji_mjlab.assets.robots.wuji_hand.wuji_hand_cfg import get_wuji_hand_cfg
-  from wuji_mjlab.tasks.reorient.reorient_constants import (
-    REORIENT_CUBE_INIT_STATE,
-    REORIENT_ROBOT_INIT_STATE,
+
+  _, robot_binding, robot_cfg_factory, robot_init, cube_init = _resolve_scene_task(
+    task_id
   )
 
   spec = mujoco.MjSpec()
@@ -206,13 +253,12 @@ def build_reorient_scene(
   all_entity_assets: dict[str, bytes] = {}
 
   # Robot spec: attach with prefix at InitialStateCfg position
-  robot_cfg = get_wuji_hand_cfg()
+  robot_cfg = robot_cfg_factory()
   robot_spec = robot_cfg.spec_fn()
   if robot_spec.assets:
     all_entity_assets.update(robot_spec.assets)
   while robot_spec.keys:
     robot_spec.delete(robot_spec.keys[0])
-  robot_init = REORIENT_ROBOT_INIT_STATE
   frame = spec.worldbody.add_frame()
   frame.pos = np.array(robot_init.pos)  # (0, 0, 0.5) — lift hand above ground
   frame.quat = np.array(robot_init.rot)  # (1, 0, 0, 0)
@@ -318,18 +364,12 @@ def build_reorient_scene(
   data = mujoco.MjData(model)
 
   # -- Resolve indices --
-  joint_names = [
-    f"robot/right_finger{f}_joint{j}" for f in range(1, 6) for j in range(1, 5)
-  ]
+  joint_names = [f"robot/{name}" for name in robot_binding.joint_names]
   joint_qpos_adr = np.array([model.joint(n).qposadr[0] for n in joint_names])
 
-  # Actuator IDs (actuator names have _act suffix from XML)
+  # Actuator IDs (actuator names are <joint>_actuator in the XML)
   ctrl_ids = np.array(
-    [
-      model.actuator(f"robot/right_finger{f}_joint{j}_actuator").id
-      for f in range(1, 6)
-      for j in range(1, 5)
-    ]
+    [model.actuator(f"robot/{name}_actuator").id for name in robot_binding.joint_names]
   )
 
   # Cube freejoint
@@ -338,7 +378,7 @@ def build_reorient_scene(
   cube_body_id = model.body("object/cube").id
 
   # Palm body (for tag-frame obs)
-  palm_body_id = model.body("robot/right_palm_link").id
+  palm_body_id = model.body(f"robot/{robot_binding.viewer_body_name}").id
 
   # Goal mocap body
   goal_body_id = model.body("goal").id
@@ -346,12 +386,10 @@ def build_reorient_scene(
   assert goal_mocap_id >= 0, "Goal body must be a mocap body"
 
   # -- Build init state from constants (specs have no keyframes; Entity builds them) --
-  # Robot joint positions from REORIENT_ROBOT_INIT_STATE
-  robot_home = REORIENT_ROBOT_INIT_STATE
-  default_joint_pos = np.zeros(20, dtype=np.float64)
-  bare_joint_names = [
-    f"right_finger{f}_joint{j}" for f in range(1, 6) for j in range(1, 5)
-  ]
+  # Robot joint positions from task init state.
+  robot_home = robot_init
+  default_joint_pos = np.zeros(len(robot_binding.joint_names), dtype=np.float64)
+  bare_joint_names = list(robot_binding.joint_names)
   for i, jname in enumerate(bare_joint_names):
     # joint_pos keys are regex patterns (e.g. ".*_finger1_joint1"); match against bare name
     for pattern, val in robot_home.joint_pos.items():
@@ -366,8 +404,7 @@ def build_reorient_scene(
   # Write robot joint ctrl (same as joint pos for position actuators)
   data.ctrl[ctrl_ids] = default_joint_pos
 
-  # Cube initial state from REORIENT_CUBE_INIT_STATE
-  cube_init = REORIENT_CUBE_INIT_STATE
+  # Cube initial state from task config.
   default_cube_pos = np.array(cube_init.pos, dtype=np.float64)
   default_cube_quat = np.array(cube_init.rot, dtype=np.float64)
   data.qpos[cube_qpos_adr : cube_qpos_adr + 3] = default_cube_pos
@@ -403,6 +440,9 @@ def build_reorient_scene(
     default_cube_quat=default_cube_quat,
     soft_lower=soft_lower,
     soft_upper=soft_upper,
+    robot_binding=robot_binding,
+    tag_in_palm_pos=np.array(robot_binding.tag_in_palm_pos, dtype=np.float64),
+    tag_in_palm_quat=np.array(robot_binding.tag_in_palm_quat, dtype=np.float64),
     sim_dt=sim_dt,
     ctrl_dt=ctrl_dt,
     n_substeps=n_substeps,
@@ -415,7 +455,7 @@ def build_reorient_scene(
 
 
 def compute_joint_pos_normalized(scene: SceneMetadata) -> np.ndarray:
-  """Joint positions normalized by soft limits to [-1, 1]. Shape: (20,).
+  """Joint positions normalized by soft limits to [-1, 1].
 
   Matches joint_pos_limit_normalized in src/wuji_mjlab/tasks/reorient/mdp/observations.py.
   """
@@ -428,7 +468,7 @@ def compute_joint_pos_normalized(scene: SceneMetadata) -> np.ndarray:
 def compute_joint_pos_target_error(
   scene: SceneMetadata, target: np.ndarray
 ) -> np.ndarray:
-  """Normalized joint position error: current_normalized - target_normalized. Shape: (20,).
+  """Normalized joint position error: current_normalized - target_normalized.
 
   Matches joint_pos_target_error in src/wuji_mjlab/tasks/reorient/mdp/observations.py.
   """
@@ -449,21 +489,12 @@ def compute_cube_pos_in_tag(scene: SceneMetadata) -> np.ndarray:
     tag_quat_w = quat_mul(palm_quat_w, TAG_IN_PALM_QUAT_WXYZ)
     cube_pos_in_tag = quat_apply_inverse(tag_quat_w, cube_pos_w - tag_pos_w)
 
-  TAG_IN_PALM_* pulled from reorient_constants — single source of truth
-  shared with the training-side obs.
+  The tag transform comes from the selected robot binding.
   """
-  from wuji_mjlab.tasks.reorient.reorient_constants import (
-    TAG_IN_PALM_POS,
-    TAG_IN_PALM_QUAT_WXYZ,
-  )
-
-  tag_in_palm_pos = np.array(TAG_IN_PALM_POS, dtype=np.float64)
-  tag_in_palm_quat = np.array(TAG_IN_PALM_QUAT_WXYZ, dtype=np.float64)
-
   palm_pos_w = scene.palm_pos
   palm_quat_w = scene.palm_quat
-  tag_pos_w = palm_pos_w + quat_apply(palm_quat_w, tag_in_palm_pos)
-  tag_quat_w = quat_mul(palm_quat_w, tag_in_palm_quat)
+  tag_pos_w = palm_pos_w + quat_apply(palm_quat_w, scene.tag_in_palm_pos)
+  tag_quat_w = quat_mul(palm_quat_w, scene.tag_in_palm_quat)
   cube_pos_tag = quat_apply_inverse(tag_quat_w, scene.cube_pos - tag_pos_w)
   return cube_pos_tag.astype(np.float32)
 
@@ -479,7 +510,10 @@ def compute_cube_ori_error_6d(
 
   Matches goal_rot_err_6d in src/wuji_mjlab/tasks/reorient/mdp/observations.py.
   """
-  q_err = quat_mul(scene.cube_quat, quat_inv(goal_quat))
+  tag_quat_inv = quat_inv(quat_mul(scene.palm_quat, scene.tag_in_palm_quat))
+  cube_in_tag = quat_mul(tag_quat_inv, scene.cube_quat)
+  goal_in_tag = quat_mul(tag_quat_inv, goal_quat)
+  q_err = quat_mul(cube_in_tag, quat_inv(goal_in_tag))
   mat = matrix_from_quat(q_err)  # (9,)
   return mat[3:].astype(np.float32)
 

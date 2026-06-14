@@ -144,3 +144,32 @@ def test_standalone_exporter_can_export_state_dependent_std_to_onnx(tmp_path):
 
   session = ort.InferenceSession(str(onnx_path))
   assert session.get_outputs()[0].shape == [1, 3]
+
+
+def test_build_config_emits_revo3_scene_metadata():
+  env_cfg = {
+    "task_id": "Revo3RightHand_Reorient",
+    "actions": {
+      "joint_pos": {
+        "action_scale": 0.5,
+        "ema_alpha": 0.5,
+        "warmup_time_s": 0.4,
+      }
+    },
+    "observations": {
+      "policy": {
+        "terms": {
+          "joint": {"history_length": 3},
+        }
+      }
+    },
+    "sim": {"timestep": 0.01},
+    "decimation": 5,
+  }
+
+  config = export_onnx._build_config(".", env_cfg)
+
+  assert config["task_id"] == "Revo3RightHand_Reorient"
+  assert config["palm_body_name"] == "right_palm"
+  assert len(config["joint_names"]) == 21
+  assert config["joint_names"][0] == "right_thumb_CMP_joint"

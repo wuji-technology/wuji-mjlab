@@ -27,31 +27,13 @@ from wuji_mjlab.tasks.reorient.reorient_terms import (
   build_reorient_sensors,
   build_reorient_terminations,
 )
+from wuji_mjlab.tasks.reorient.robot_bindings import (
+  WUJI_RIGHT_HAND_BINDING,
+  ReorientRobotBinding,
+)
 
 # Obs history window (5 policy + 5 critic shared terms + 3 privileged terms)
 _HISTORY_LENGTH = 3
-
-TIP_SITE_NAMES = (".*_finger[1-5]_tip",)
-
-TIP_BODY_NAMES = (".*_finger[1-5]_link4",)
-
-TIP_COLLISION_GEOMS = (".*_finger[1-5]_link4_col",)
-
-UNDESIRED_OBJECT_CONTACT_BODIES = (
-  ".*_palm_link",
-  ".*_finger1_link1",
-  ".*_finger2_link1",
-  ".*_finger2_link2",
-  ".*_finger2_link3",
-  ".*_finger3_link1",
-  ".*_finger3_link2",
-  ".*_finger3_link3",
-  ".*_finger4_link1",
-  ".*_finger4_link2",
-  ".*_finger4_link3",
-  ".*_finger5_link1",
-  ".*_finger5_link2",
-)
 
 # Events removed in play (evaluation) mode so the policy is exercised against
 # nominal physics rather than the training-time randomization / disturbance
@@ -63,6 +45,7 @@ _PLAY_DISABLED_EVENTS = frozenset(
     "object_disturbance_force",
     "reset_object_disturbance_force",
     "object_com",
+    "object_friction",
     "robot_friction",
     "friction_curriculum_event",
     "robot_geom_size",
@@ -83,7 +66,9 @@ _PLAY_DISABLED_EVENTS = frozenset(
 
 
 def make_reorient_env_cfg(
-  play: bool = False, num_envs: int = 8192
+  play: bool = False,
+  num_envs: int = 8192,
+  robot_binding: ReorientRobotBinding = WUJI_RIGHT_HAND_BINDING,
 ) -> ManagerBasedRlEnvCfg:
   """Create Reorient task configuration.
 
@@ -96,20 +81,16 @@ def make_reorient_env_cfg(
   """
   observations = build_reorient_observations(
     history_length=_HISTORY_LENGTH,
-    tip_body_names=TIP_BODY_NAMES,
+    robot_binding=robot_binding,
   )
   actions = build_reorient_actions()
-  commands = build_reorient_commands()
-  events = build_reorient_events()
-  rewards = build_reorient_rewards(tip_site_names=TIP_SITE_NAMES)
+  commands = build_reorient_commands(robot_binding=robot_binding)
+  events = build_reorient_events(robot_binding=robot_binding)
+  rewards = build_reorient_rewards(robot_binding=robot_binding)
   terminations = build_reorient_terminations()
   curriculum = build_reorient_curriculum()
-  metrics = build_reorient_metrics()
-  sensors = build_reorient_sensors(
-    tip_collision_geoms=TIP_COLLISION_GEOMS,
-    tip_body_names=TIP_BODY_NAMES,
-    undesired_object_contact_bodies=UNDESIRED_OBJECT_CONTACT_BODIES,
-  )
+  metrics = build_reorient_metrics(robot_binding=robot_binding)
+  sensors = build_reorient_sensors(robot_binding=robot_binding)
 
   cfg = ManagerBasedRlEnvCfg(
     scene=SceneCfg(

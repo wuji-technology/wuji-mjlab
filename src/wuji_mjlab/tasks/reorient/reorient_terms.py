@@ -7,31 +7,14 @@ to assemble a ``ManagerBasedRlEnvCfg``. Splitting the per-group construction
 out of the env-cfg keeps the top-level assembly file small and makes
 individual term groups easy to inspect, override, or unit-test.
 
-Robot-binding note: this module owns the full reorient task design,
-including decisions that conceptually belong at the robot-binding layer
-(``config/wuji_hand/env_cfgs.py``):
-
-- 7 contact sensors (``build_reorient_sensors``) — patterns include
-  the hardcoded ``right_palm_link`` subtree filter for ``finger_collision``.
-- The ``palm_detach`` reward and the boosted ``finger_collision`` weight.
-- The 2-group startup contact_params DR split, grouped by hand anatomy:
-  ``contact_params_palm_thumb`` for the 5 geoms of the continuous
-  silicone-pad compliance zone (palm + entire thumb: link2_col,
-  link2_softbody, link3, link4), and ``contact_params_fingers`` for the
-  12 geoms of the rigid grasping fingers (fingers 2-5, link2-4). Width
-  × (2.0, 5.0) on the soft-pad group, width × (1.0, 2.0) on the fingers
-  group; both events carry solimp_dmin_range=(0.5, 1.0). The thumb
-  fingertip's link4 mesh belongs in the soft-pad zone with the rest of
-  the thumb, not in a separate fingertip bucket.
-
-The Wuji Hand right-hand asset is therefore baked in here. A second
-robot binding (e.g. left hand) would need either a parallel terms module
-or an explicit override at the binding site.
+Robot-specific body/site/geom names are supplied by
+``ReorientRobotBinding`` so the task design can be reused across hands.
 """
 
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 
 from mjlab.managers.action_manager import ActionTermCfg
 from mjlab.managers.command_manager import CommandTermCfg
@@ -48,13 +31,34 @@ from mjlab.utils.noise import UniformNoiseCfg as Unoise
 
 from wuji_mjlab.tasks.reorient import mdp
 from wuji_mjlab.tasks.reorient.mdp.commands import InHandReorientCommandCfg
+from wuji_mjlab.tasks.reorient.robot_bindings import (
+  WUJI_RIGHT_HAND_BINDING,
+  ReorientRobotBinding,
+)
+
+
+@dataclass(frozen=True, kw_only=True)
+class ReorientRobustRandomizationCfg:
+  """Optional curriculum-gated robustness randomization bundle."""
+
+  curriculum_term: str = "adaptive_episode"
+  pos_noise_max: float = 0.003
+  object_friction_scale_range: tuple[float, float] = (0.7, 1.3)
+  action_hold_max_prob: float = 0.10
+  angular_disturbance_speed_range: tuple[float, float] = (0.0, 2.0)
 
 
 def build_reorient_observations(
   history_length: int,
-  tip_body_names: tuple[str, ...],
+  robot_binding: ReorientRobotBinding = WUJI_RIGHT_HAND_BINDING,
 ) -> dict[str, ObservationGroupCfg]:
   """Build policy and critic observation groups."""
+  palm_cfg = SceneEntityCfg("robot", body_names=robot_binding.palm_body_names)
+  tag_params = {
+    "robot_cfg": palm_cfg,
+    "tag_in_palm_pos": robot_binding.tag_in_palm_pos,
+    "tag_in_palm_quat": robot_binding.tag_in_palm_quat,
+  }
   policy_terms = {
     "noisy_joint_angles": ObservationTermCfg(
       func=mdp.joint_pos_limit_normalized,
@@ -68,7 +72,7 @@ def build_reorient_observations(
     # Absolute cube position in tag frame (not a delta from a reference).
     "cube_pos_in_tag": ObservationTermCfg(
       func=mdp.cube_pos_in_tag,
-      params={"injection_prob": 0.02},
+      params={**tag_params, "injection_prob": 0.02},
       noise=Unoise(n_min=-0.008, n_max=0.008),
       history_length=history_length,
     ),
@@ -77,6 +81,7 @@ def build_reorient_observations(
       params={
         "command_name": "reorient_command",
         "object_cfg": SceneEntityCfg("object"),
+        **tag_params,
         "injection_prob": 0.02,
       },
       noise=Gnoise(std=0.05),
@@ -99,6 +104,7 @@ def build_reorient_observations(
     ),
     "cube_pos_in_tag": ObservationTermCfg(
       func=mdp.cube_pos_in_tag,
+      params=tag_params,
       history_length=history_length,
     ),
     "cube_ori_error": ObservationTermCfg(
@@ -106,6 +112,7 @@ def build_reorient_observations(
       params={
         "command_name": "reorient_command",
         "object_cfg": SceneEntityCfg("object"),
+        **tag_params,
       },
       history_length=history_length,
     ),
@@ -125,7 +132,9 @@ def build_reorient_observations(
     "fingertip_positions": ObservationTermCfg(
       func=mdp.body_pos_rel,
       params={
-        "asset_cfg": SceneEntityCfg("robot", body_names=tip_body_names),
+        "asset_cfg": SceneEntityCfg(
+          "robot", body_names=robot_binding.tip_body_names
+        ),
         "offset": (0.0, 0.0, 0.5),
       },
       scale=5.0,
@@ -133,12 +142,14 @@ def build_reorient_observations(
     ),
     "cube_pos_in_tag_clean": ObservationTermCfg(
       func=mdp.cube_pos_in_tag,
+      params=tag_params,
     ),
     "cube_ori_error_clean": ObservationTermCfg(
       func=mdp.goal_rot_err_6d,
       params={
         "command_name": "reorient_command",
         "object_cfg": SceneEntityCfg("object"),
+        **tag_params,
       },
     ),
     "cube_linvel": ObservationTermCfg(
@@ -168,7 +179,7 @@ def build_reorient_observations(
       params={
         "robot_cfg": SceneEntityCfg(
           "robot",
-          geom_names=(".*palm_.*", ".*finger.*_col"),
+          geom_names=robot_binding.dr_robot_geoms,
           actuator_names=(".*",),
           joint_names=(".*",),
         ),
@@ -200,18 +211,14 @@ def build_reorient_observations(
 
 
 def build_reorient_sensors(
-  tip_collision_geoms: tuple[str, ...],
-  tip_body_names: tuple[str, ...],
-  undesired_object_contact_bodies: tuple[str, ...],
+  robot_binding: ReorientRobotBinding = WUJI_RIGHT_HAND_BINDING,
 ) -> tuple[SensorCfg, ...]:
-  """Build the 7 contact sensors required by the reorient task.
-
-  Hardcoded Wuji Hand right-hand: ``finger_collision`` filters against
-  the ``right_palm_link`` subtree.
-  """
+  """Build the 7 contact sensors required by the reorient task."""
   tip_object_contact = ContactSensorCfg(
     name="tip_object_contact",
-    primary=ContactMatch(mode="geom", pattern=tip_collision_geoms, entity="robot"),
+    primary=ContactMatch(
+      mode="geom", pattern=robot_binding.tip_collision_geoms, entity="robot"
+    ),
     secondary=ContactMatch(mode="geom", pattern="cube", entity="object"),
     fields=("found", "force"),
     reduce="mindist",
@@ -219,7 +226,9 @@ def build_reorient_sensors(
   )
   palm_object_contact = ContactSensorCfg(
     name="palm_object_contact",
-    primary=ContactMatch(mode="body", pattern=".*_palm_link", entity="robot"),
+    primary=ContactMatch(
+      mode="body", pattern=robot_binding.palm_body_names, entity="robot"
+    ),
     secondary=ContactMatch(mode="body", pattern="cube", entity="object"),
     fields=("force",),
     reduce="netforce",
@@ -230,7 +239,7 @@ def build_reorient_sensors(
     name="palm_object_found",
     primary=ContactMatch(
       mode="body",
-      pattern=(".*_palm_link", ".*_finger.*_link[12]"),
+      pattern=robot_binding.palm_object_found_bodies,
       entity="robot",
     ),
     secondary=ContactMatch(mode="body", pattern="cube", entity="object"),
@@ -242,7 +251,7 @@ def build_reorient_sensors(
     name="distal_finger_object_found",
     primary=ContactMatch(
       mode="body",
-      pattern=(".*_finger.*_link[34]",),
+      pattern=robot_binding.distal_finger_object_found_bodies,
       entity="robot",
     ),
     secondary=ContactMatch(mode="body", pattern="cube", entity="object"),
@@ -253,7 +262,9 @@ def build_reorient_sensors(
   undesired_object_contact = ContactSensorCfg(
     name="undesired_object_contact",
     primary=ContactMatch(
-      mode="body", pattern=undesired_object_contact_bodies, entity="robot"
+      mode="body",
+      pattern=robot_binding.undesired_object_contact_bodies,
+      entity="robot",
     ),
     secondary=ContactMatch(mode="body", pattern="cube", entity="object"),
     fields=("force",),
@@ -262,15 +273,25 @@ def build_reorient_sensors(
   )
   robot_contact = ContactSensorCfg(
     name="robot_contact",
-    primary=ContactMatch(mode="body", pattern=tip_body_names, entity="robot"),
+    primary=ContactMatch(
+      mode="body", pattern=robot_binding.tip_body_names, entity="robot"
+    ),
     fields=("force",),
     reduce="netforce",
     num_slots=1,
   )
   finger_collision = ContactSensorCfg(
     name="finger_collision",
-    primary=ContactMatch(mode="geom", pattern=(".*finger.*_col",), entity="robot"),
-    secondary=ContactMatch(mode="subtree", pattern="right_palm_link", entity="robot"),
+    primary=ContactMatch(
+      mode="geom",
+      pattern=robot_binding.finger_collision_primary_geoms,
+      entity="robot",
+    ),
+    secondary=ContactMatch(
+      mode="subtree",
+      pattern=robot_binding.finger_collision_subtree_body,
+      entity="robot",
+    ),
     fields=("found", "force"),
     reduce="none",
     num_slots=1,
@@ -300,7 +321,9 @@ def build_reorient_actions() -> dict[str, ActionTermCfg]:
   }
 
 
-def build_reorient_commands() -> dict[str, CommandTermCfg]:
+def build_reorient_commands(
+  robot_binding: ReorientRobotBinding = WUJI_RIGHT_HAND_BINDING,
+) -> dict[str, CommandTermCfg]:
   """Build the command term group."""
   return {
     "reorient_command": InHandReorientCommandCfg(
@@ -311,13 +334,18 @@ def build_reorient_commands() -> dict[str, CommandTermCfg]:
       goal_switch_delay=20,
       min_goal_interval=0.0,
       debug_vis=False,
+      palm_body_pattern=robot_binding.palm_body_pattern,
+      tag_in_palm_pos=robot_binding.tag_in_palm_pos,
+      tag_in_palm_quat=robot_binding.tag_in_palm_quat,
     )
   }
 
 
-def build_reorient_events() -> dict[str, EventTermCfg]:
+def build_reorient_events(
+  robot_binding: ReorientRobotBinding = WUJI_RIGHT_HAND_BINDING,
+) -> dict[str, EventTermCfg]:
   """Build all event terms (resets, intervals, startup DR)."""
-  return {
+  events = {
     "reset_robot_pose": EventTermCfg(
       func=mdp.reset_root_state_uniform,
       mode="reset",
@@ -333,12 +361,7 @@ def build_reorient_events() -> dict[str, EventTermCfg]:
       mode="reset",
       params={
         "asset_cfg": SceneEntityCfg("robot"),
-        "position_range": {
-          ".*_joint1": (-0.3, -0.1),
-          ".*_joint2": (0.0, 0.0),
-          ".*_joint3": (-0.3, -0.1),
-          ".*_joint4": (-0.3, -0.1),
-        },
+        "position_range": robot_binding.joint_reset_position_range,
         "velocity_range": {},
         "use_default_offset": True,
         "operation": "abs",
@@ -389,22 +412,10 @@ def build_reorient_events() -> dict[str, EventTermCfg]:
       params={
         "asset_cfg": SceneEntityCfg(
           "robot",
-          geom_names=(".*palm_.*", ".*finger.*_col"),
+          geom_names=robot_binding.dr_robot_geoms,
         ),
         "operation": "scale",
         "ranges": (0.7, 1.3),
-      },
-    ),
-    "robot_geom_size": EventTermCfg(
-      mode="startup",
-      func=mdp.randomize_geom_size_uniform,
-      params={
-        # randomize_geom_size_uniform rejects mesh geoms; restrict to the 10 primitive capsules.
-        "asset_cfg": SceneEntityCfg(
-          "robot",
-          geom_names=(r".*finger[1-5]_link[2-3]_col",),
-        ),
-        "scale_range": (0.97, 1.03),
       },
     ),
     # 2-group contact DR: thumb+palm (soft 2-5mm) vs fingers 2-5 (rigid 1-2mm).
@@ -414,19 +425,13 @@ def build_reorient_events() -> dict[str, EventTermCfg]:
       params={
         "robot_cfg": SceneEntityCfg(
           "robot",
-          geom_names=(
-            "right_palm_collision",
-            "right_finger1_link2_col",
-            "right_finger1_link2_softbody_col",
-            "right_finger1_link3_col",
-            "right_finger1_link4_col",
-          ),
+          geom_names=robot_binding.contact_params_palm_thumb_geoms,
         ),
         "solref_timeconst_range": (1.0, 2.0),
         "solref_dampratio_range": (0.8, 1.2),
         # 2-5 mm soft-zone: the lower end overlaps the finger event's
         # max so a worn pad behaves like a stiff finger.
-        "solimp_width_range": (2.0, 5.0),
+        "solimp_width_range": robot_binding.contact_params_palm_thumb_width_range,
         "solimp_dmin_range": (0.5, 1.0),
       },
     ),
@@ -436,11 +441,11 @@ def build_reorient_events() -> dict[str, EventTermCfg]:
       params={
         "robot_cfg": SceneEntityCfg(
           "robot",
-          geom_names=(r".*finger[2-5]_link[2-4]_col",),
+          geom_names=robot_binding.contact_params_fingers_geoms,
         ),
         "solref_timeconst_range": (1.0, 2.0),
         "solref_dampratio_range": (0.8, 1.2),
-        "solimp_width_range": (1.0, 2.0),
+        "solimp_width_range": robot_binding.contact_params_fingers_width_range,
         "solimp_dmin_range": (0.5, 1.0),
       },
     ),
@@ -525,10 +530,55 @@ def build_reorient_events() -> dict[str, EventTermCfg]:
       },
     ),
   }
+  if robot_binding.geom_size_randomization_geoms is not None:
+    events["robot_geom_size"] = EventTermCfg(
+      mode="startup",
+      func=mdp.randomize_geom_size_uniform,
+      params={
+        # randomize_geom_size_uniform rejects mesh geoms; robot bindings opt in
+        # only when the matched collision geoms are primitive sizes.
+        "asset_cfg": SceneEntityCfg(
+          "robot",
+          geom_names=robot_binding.geom_size_randomization_geoms,
+        ),
+        "scale_range": (0.97, 1.03),
+      },
+    )
+  return events
+
+
+def apply_reorient_robust_randomization(
+  env_cfg,
+  robust_cfg: ReorientRobustRandomizationCfg,
+) -> None:
+  """Enable conservative curriculum-gated DR on an assembled reorient cfg."""
+  action_cfg = env_cfg.actions["joint_pos"]
+  action_cfg.action_hold_max_prob = robust_cfg.action_hold_max_prob
+  action_cfg.action_hold_curriculum_term = robust_cfg.curriculum_term
+
+  reset_object_event = env_cfg.events["reset_object_pose"]
+  reset_object_event.params["pos_noise"] = robust_cfg.pos_noise_max
+  reset_object_event.params["pos_noise_curriculum_term"] = robust_cfg.curriculum_term
+
+  disturbance_event = env_cfg.events.get("object_disturbance_force")
+  if disturbance_event is not None:
+    min_ang_speed, max_ang_speed = robust_cfg.angular_disturbance_speed_range
+    disturbance_event.params["min_ang_speed"] = min_ang_speed
+    disturbance_event.params["max_ang_speed"] = max_ang_speed
+
+  env_cfg.events["object_friction"] = EventTermCfg(
+    mode="reset",
+    func=mdp.randomize_object_friction_scale,
+    params={
+      "asset_cfg": SceneEntityCfg("object", geom_names=("cube",)),
+      "scale_range": robust_cfg.object_friction_scale_range,
+      "curriculum_term": robust_cfg.curriculum_term,
+    },
+  )
 
 
 def build_reorient_rewards(
-  tip_site_names: tuple[str, ...],
+  robot_binding: ReorientRobotBinding = WUJI_RIGHT_HAND_BINDING,
 ) -> dict[str, RewardTermCfg]:
   """Build the reward term group."""
   return {
@@ -558,7 +608,7 @@ def build_reorient_rewards(
       func=mdp.tip_slide_penalty,
       weight=-0.3,
       params={
-        "robot_cfg": SceneEntityCfg("robot", site_names=tip_site_names),
+        "robot_cfg": SceneEntityCfg("robot", site_names=robot_binding.tip_site_names),
         "sensor_cfg": SceneEntityCfg("tip_object_contact"),
         "contact_threshold": 0.0,
       },
@@ -567,9 +617,7 @@ def build_reorient_rewards(
       func=mdp.CageEscapePenalty,
       weight=-500.0,
       params={
-        "robot_cfg": SceneEntityCfg(
-          "robot", body_names=(".*_palm_link", ".*_finger.*_link[1-4]")
-        ),
+        "robot_cfg": SceneEntityCfg("robot", body_names=robot_binding.cage_body_names),
         "margin": 0.01,
       },
     ),
@@ -591,6 +639,128 @@ def build_reorient_rewards(
     "palm_detach": RewardTermCfg(
       func=mdp.palm_detach_reward,
       weight=0.5,
+    ),
+  }
+
+
+def build_repose_reward_reorient_rewards(
+  *,
+  cube_offset_in_palm: tuple[float, float, float],
+  robot_binding: ReorientRobotBinding = WUJI_RIGHT_HAND_BINDING,
+) -> dict[str, RewardTermCfg]:
+  """Build the RevoLab-repose reward group for the copied reorient task."""
+  return {
+    "repose_position_distance": RewardTermCfg(
+      func=mdp.repose_position_distance,
+      weight=-200.0,
+      params={
+        "cube_offset_in_palm": cube_offset_in_palm,
+        "robot_cfg": SceneEntityCfg(
+          "robot", body_names=robot_binding.palm_body_names
+        ),
+      },
+    ),
+    "repose_inverse_orientation": RewardTermCfg(
+      func=mdp.repose_inverse_orientation_reward,
+      weight=20.0,
+      params={
+        "command_name": "reorient_command",
+        "rot_eps": 0.1,
+      },
+    ),
+    "repose_action_l2": RewardTermCfg(
+      func=mdp.repose_action_l2_penalty,
+      weight=-0.004,
+    ),
+    "cage_escape": RewardTermCfg(
+      func=mdp.CageEscapePenalty,
+      weight=-1.0e-6,
+      params={
+        "robot_cfg": SceneEntityCfg("robot", body_names=robot_binding.cage_body_names),
+        "margin": 0.01,
+      },
+    ),
+    "hold_escalation": RewardTermCfg(
+      func=mdp.hold_escalation,
+      weight=11.4,
+      params={
+        "command_name": "reorient_command",
+      },
+    ),
+  }
+
+
+def build_repose_reward_finetune_reorient_rewards(
+  *,
+  cube_offset_in_palm: tuple[float, float, float],
+  robot_binding: ReorientRobotBinding = WUJI_RIGHT_HAND_BINDING,
+) -> dict[str, RewardTermCfg]:
+  """Build RevoLab repose rewards plus conservative Wuji-style penalties."""
+  return {
+    "repose_position_distance": RewardTermCfg(
+      func=mdp.repose_position_distance,
+      weight=-200.0,
+      params={
+        "cube_offset_in_palm": cube_offset_in_palm,
+        "robot_cfg": SceneEntityCfg(
+          "robot", body_names=robot_binding.palm_body_names
+        ),
+      },
+    ),
+    "repose_inverse_orientation": RewardTermCfg(
+      func=mdp.repose_inverse_orientation_reward,
+      weight=20.0,
+      params={
+        "command_name": "reorient_command",
+        "rot_eps": 0.1,
+      },
+    ),
+    "repose_action_l2": RewardTermCfg(
+      func=mdp.repose_action_l2_penalty,
+      weight=-0.004,
+    ),
+    "hand_pose": RewardTermCfg(
+      func=mdp.hand_pose_penalty,
+      weight=-0.2,
+    ),
+    "action_rate": RewardTermCfg(
+      func=mdp.action_rate_combined,
+      weight=-0.02,
+    ),
+    "torque": RewardTermCfg(
+      func=mdp.torque_penalty,
+      weight=-24.0,
+    ),
+    "tip_slide": RewardTermCfg(
+      func=mdp.tip_slide_penalty,
+      weight=-0.3,
+      params={
+        "robot_cfg": SceneEntityCfg("robot", site_names=robot_binding.tip_site_names),
+        "sensor_cfg": SceneEntityCfg("tip_object_contact"),
+        "contact_threshold": 0.0,
+      },
+    ),
+    "cage_escape": RewardTermCfg(
+      func=mdp.CageEscapePenalty,
+      weight=-500.0,
+      params={
+        "robot_cfg": SceneEntityCfg("robot", body_names=robot_binding.cage_body_names),
+        "margin": 0.01,
+      },
+    ),
+    "finger_collision": RewardTermCfg(
+      func=mdp.finger_self_collision_penalty,
+      weight=-1.0,
+      params={
+        "sensor_cfg": SceneEntityCfg("finger_collision"),
+      },
+    ),
+    "hold_escalation": RewardTermCfg(
+      func=mdp.hold_escalation,
+      weight=11.4,
+      params={
+        "command_name": "reorient_command",
+      },
     ),
   }
 
@@ -630,7 +800,9 @@ def build_reorient_curriculum() -> dict[str, CurriculumTermCfg]:
   }
 
 
-def build_reorient_metrics() -> dict[str, MetricsTermCfg]:
+def build_reorient_metrics(
+  robot_binding: ReorientRobotBinding = WUJI_RIGHT_HAND_BINDING,
+) -> dict[str, MetricsTermCfg]:
   """Build the metrics term group.
 
   Note (per-world-mesh mjlab): ``MetricsTermCfg.reduce`` is not exposed; all
@@ -661,7 +833,11 @@ def build_reorient_metrics() -> dict[str, MetricsTermCfg]:
     ),
     "cube_height_above_palm": MetricsTermCfg(
       func=mdp.cube_height_above_palm,
-      params={"robot_cfg": SceneEntityCfg("robot", body_names=(".*_palm_link",))},
+      params={
+        "robot_cfg": SceneEntityCfg(
+          "robot", body_names=robot_binding.palm_body_names
+        )
+      },
     ),
     "finger_collision_frequency": MetricsTermCfg(
       func=mdp.finger_collision_frequency,

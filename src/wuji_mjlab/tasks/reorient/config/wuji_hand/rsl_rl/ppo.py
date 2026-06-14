@@ -12,6 +12,8 @@ from mjlab.rl import (
 def wuji_hand_reorient_ppo_runner_cfg(
   run_name: str = "Reorient",
   max_iterations: int = 5000,
+  experiment_name: str = "wuji_reorient",
+  wandb_project: str = "wuji_reorient_mjlab",
 ) -> RslRlOnPolicyRunnerCfg:
   return RslRlOnPolicyRunnerCfg(
     obs_groups={"actor": ("policy",), "critic": ("critic",)},
@@ -43,9 +45,9 @@ def wuji_hand_reorient_ppo_runner_cfg(
       lam=0.95,
       max_grad_norm=1.0,
     ),
-    experiment_name="wuji_reorient",
+    experiment_name=experiment_name,
     logger="wandb",
-    wandb_project="wuji_reorient_mjlab",
+    wandb_project=wandb_project,
     run_name=run_name,
     save_interval=50,
     num_steps_per_env=40,

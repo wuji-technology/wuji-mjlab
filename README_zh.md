@@ -24,6 +24,7 @@
 | 机器人 | 任务 ID | 预训练 checkpoint | 演示 |
 |---|---|---|---|
 | Wuji Hand | `WujiHand_Reorient` | [Latest release assets](https://github.com/wuji-technology/wuji-mjlab/releases/latest) | 上方 sim + real GIFs |
+| Revo3 Right Hand | `Revo3RightHand_Reorient` | 需要重新训练 | 仅仿真 |
 
 从最新 release 拉取 checkpoint 和 CAD 包：
 
@@ -95,6 +96,8 @@ index-strategy = "unsafe-best-match"
 
 ```bash
 pixi run train --task WujiHand_Reorient --agent.upload-model False
+# Revo3 仅仿真任务：
+pixi run train --task Revo3RightHand_Reorient --agent.upload-model False
 ```
 
 `--agent.upload-model False` 表示 checkpoint 只保存在本地。去掉该参数（并设置 `WANDB_API_KEY`），最后一次迭代的 checkpoint 会作为 model artifact 上传到 W&B——无论是否上传，本地 `.pt` 都会在每个 `save_interval` 触发点写入。

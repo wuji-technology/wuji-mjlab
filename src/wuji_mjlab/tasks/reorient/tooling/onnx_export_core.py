@@ -30,6 +30,12 @@ import yaml
 from rsl_rl.modules import MLP, EmpiricalNormalization
 from rsl_rl.modules.distribution import _MeanSliceDeterministicOutput
 
+from wuji_mjlab.tasks.reorient.robot_bindings import (
+  REVO3_RIGHT_HAND_BINDING,
+  WUJI_RIGHT_HAND_BINDING,
+  ReorientRobotBinding,
+)
+
 _ONNX_OPSET_VERSION = 13
 
 
@@ -274,6 +280,28 @@ def _infer_control_config(env_cfg: dict[str, Any]) -> dict[str, Any]:
   return config
 
 
+def _command_cfg_dict(env_cfg: dict[str, Any]) -> dict[str, Any]:
+  commands = env_cfg.get("commands", {})
+  if not isinstance(commands, dict):
+    return {}
+  command_cfg = commands.get("reorient_command", {})
+  return command_cfg if isinstance(command_cfg, dict) else {}
+
+
+def _infer_robot_binding(env_cfg: dict[str, Any]) -> tuple[str, ReorientRobotBinding]:
+  task_id = str(env_cfg.get("task_id", ""))
+  if task_id.startswith("Revo3RightHand"):
+    return task_id, REVO3_RIGHT_HAND_BINDING
+  if task_id.startswith("WujiHand"):
+    return task_id, WUJI_RIGHT_HAND_BINDING
+
+  command_cfg = _command_cfg_dict(env_cfg)
+  palm_body_pattern = str(command_cfg.get("palm_body_pattern", ""))
+  if palm_body_pattern == REVO3_RIGHT_HAND_BINDING.palm_body_pattern:
+    return "Revo3RightHand_Reorient", REVO3_RIGHT_HAND_BINDING
+  return "WujiHand_Reorient", WUJI_RIGHT_HAND_BINDING
+
+
 def _build_config(run_dir: str, env_cfg: dict[str, Any] | None) -> dict[str, Any]:
   """Build task-aware config.json from params/env.yaml."""
   config: dict[str, Any] = {}
@@ -282,6 +310,12 @@ def _build_config(run_dir: str, env_cfg: dict[str, Any] | None) -> dict[str, Any
     return config
 
   config.update(_infer_control_config(env_cfg))
+  task_id, robot_binding = _infer_robot_binding(env_cfg)
+  config["task_id"] = task_id
+  config["joint_names"] = list(robot_binding.joint_names)
+  config["palm_body_name"] = robot_binding.viewer_body_name
+  config["tag_in_palm_pos"] = list(robot_binding.tag_in_palm_pos)
+  config["tag_in_palm_quat"] = list(robot_binding.tag_in_palm_quat)
 
   decimation = int(env_cfg.get("decimation", 5))
   sim_cfg = env_cfg.get("sim", {})

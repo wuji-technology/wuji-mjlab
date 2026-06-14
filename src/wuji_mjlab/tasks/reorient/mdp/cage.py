@@ -128,6 +128,7 @@ class CageEscapePenalty(ManagerTermBase):
     self._drop_scale: float = params.get("drop_scale", 4.0)
     self._counter_decay_rate: float = params.get("counter_decay_rate", 0.5)
     self._penalty_counter = torch.zeros(env.num_envs, device=env.device)
+    self._debug_vis_enabled = True
 
   def reset(self, env_ids) -> None:
     self._penalty_counter[env_ids] = 0
@@ -163,6 +164,8 @@ class CageEscapePenalty(ManagerTermBase):
     )
 
   def debug_vis(self, visualizer: "DebugVisualizer") -> None:
+    if not self._debug_vis_enabled:
+      return
     if not hasattr(visualizer, "mj_model") or not hasattr(visualizer, "scn"):
       return
     import mujoco

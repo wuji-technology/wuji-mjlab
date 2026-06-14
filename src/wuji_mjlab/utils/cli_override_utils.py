@@ -7,6 +7,8 @@ from __future__ import annotations
 DEFAULT_TASK_ALIASES = {
   "reorient": "WujiHand_Reorient",
   "reorient/reorient": "WujiHand_Reorient",
+  "revo3": "Revo3RightHand_Reorient",
+  "revo3/reorient": "Revo3RightHand_Reorient",
 }
 
 

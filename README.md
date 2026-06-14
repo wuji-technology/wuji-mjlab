@@ -24,6 +24,7 @@
 | Robot | Task ID | Pretrained checkpoint | Demo |
 |---|---|---|---|
 | Wuji Hand | `WujiHand_Reorient` | [Latest release assets](https://github.com/wuji-technology/wuji-mjlab/releases/latest) | sim + real GIFs above |
+| Revo3 Right Hand | `Revo3RightHand_Reorient` | Train from scratch | simulation only |
 
 Pull the checkpoint and CAD bundle from the latest release:
 
@@ -79,6 +80,8 @@ Verify the environment: `pixi run list-envs` (lists registered tasks and confirm
 
 ```bash
 pixi run train --task WujiHand_Reorient --agent.upload-model False
+# Revo3 simulation-only variant:
+pixi run train --task Revo3RightHand_Reorient --agent.upload-model False
 ```
 
 `--agent.upload-model False` keeps checkpoints local-only. Drop it (and set `WANDB_API_KEY`) to also push the final-iteration checkpoint to W&B as a model artifact — local `.pt` files are still written on every `save_interval` boundary either way.

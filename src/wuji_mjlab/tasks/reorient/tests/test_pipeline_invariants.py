@@ -84,6 +84,7 @@ class TestPlayConfigOverrides:
   # DR event keys that must be removed in play mode
   _DR_EVENTS = [
     "object_com",
+    "object_friction",
     "robot_friction",
     "robot_geom_size",
     "contact_params",

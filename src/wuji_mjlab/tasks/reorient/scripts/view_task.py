@@ -99,7 +99,6 @@ if __name__ == "__main__":
       prog=sys.argv[0] + " TASK_ID",
       config=(
         tyro.conf.AvoidSubcommands,
-        tyro.conf.FlagConversionOff,
       ),
     )
     sys.exit(0)
@@ -117,7 +116,6 @@ if __name__ == "__main__":
     prog=sys.argv[0] + f" {chosen_task}",
     config=(
       tyro.conf.AvoidSubcommands,
-      tyro.conf.FlagConversionOff,
     ),
   )
 

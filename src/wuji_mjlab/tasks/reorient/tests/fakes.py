@@ -41,11 +41,14 @@ class FakeAsset:
     default_root_state[:, 3] = 1.0
     root_link_pose_w = torch.zeros((num_envs, 7), device=device)
     root_link_pose_w[:, 3] = 1.0
+    body_link_pose_w = torch.zeros((num_envs, num_bodies, 7), device=device)
+    body_link_pose_w[:, :, 3] = 1.0
     self.data = SimpleNamespace(
       default_root_state=default_root_state,
       root_link_pos_w=torch.zeros((num_envs, 3), device=device),
       root_link_quat_w=root_link_quat_w,
       root_link_pose_w=root_link_pose_w,
+      body_link_pose_w=body_link_pose_w,
       root_link_vel_w=torch.zeros((num_envs, 6), device=device),
       default_joint_pos=torch.zeros((num_envs, num_joints), device=device),
       default_joint_vel=torch.zeros((num_envs, num_joints), device=device),
@@ -82,6 +85,14 @@ class FakeAsset:
   def find_geoms(self, geom_name: str) -> tuple[list[int], list[str]]:
     if not geom_name:
       return [], []
+    if isinstance(geom_name, tuple):
+      geom_ids: list[int] = []
+      names: list[str] = []
+      for pattern in geom_name:
+        matched_ids, matched_names = self.find_geoms(pattern)
+        geom_ids.extend(matched_ids)
+        names.extend(matched_names)
+      return geom_ids, names
     if geom_name in (".*palm_.*", ".*finger.*_col"):
       geom_ids = list(range(len(self._geom_names)))
       return geom_ids, [self._geom_names[idx] for idx in geom_ids]
@@ -101,6 +112,14 @@ class FakeAsset:
   def find_bodies(self, body_name: str) -> tuple[list[int], list[str]]:
     if not body_name:
       return [], []
+    if isinstance(body_name, tuple):
+      body_ids: list[int] = []
+      names: list[str] = []
+      for pattern in body_name:
+        matched_ids, matched_names = self.find_bodies(pattern)
+        body_ids.extend(matched_ids)
+        names.extend(matched_names)
+      return body_ids, names
     if body_name == "cube" and self._body_names:
       return [0], [self._body_names[0]]
     pattern = re.compile(body_name)
