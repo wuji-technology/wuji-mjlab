@@ -1,242 +1,252 @@
-# Revo3 模型动作提取规范
+# Revo3 Hand Policy Replay Deployment Specification
 
-本文档用于指导从模型或仿真环境中导出 Revo3 手部动作，使导出的 `.target.txt`
-可以被 `replay.py` 直接回放到 `joint_forward_mit_controller`。
+## Summary
 
-重点：
+Read-only inspection found an existing active Revo3 RL deployment path, but not the safe offline policy replay stage requested here. No files were modified and no hardware commands were run.
 
-- `replay.py` 不加载 `policy.onnx`，也不做在线推理。
-- `replay.py` 只读取已经导出的 `.target.txt` 轨迹，再结合
-  `revo3_profile.yaml` 转成 `Revo3MITCommand`。
-- 推荐导出仿真空间的绝对目标关节角 `cur_targets`，并用 `--mode absolute`
-  回放。
+Key sources: [revo3_policy_node.py](/home/liuxinyu/workspace/revoarm_teleoperation/revoarm_hardware/Revoarm_ws/src/brainco_capabilities/revo3_rl_deploy/revo3_rl_deploy/revo3_policy_node.py), [stage2_input_builder.py](/home/liuxinyu/workspace/revoarm_teleoperation/revoarm_hardware/Revoarm_ws/src/brainco_capabilities/revo3_rl_deploy/revo3_rl_deploy/stage2_input_builder.py), [replay.py](/home/liuxinyu/workspace/revoarm_teleoperation/revoarm_hardware/Revoarm_ws/src/brainco_capabilities/revo3_rl_deploy/revo3_rl_deploy/replay.py), [policy.yaml](/home/liuxinyu/workspace/revoarm_teleoperation/revoarm_hardware/Revoarm_ws/src/brainco_capabilities/revo3_rl_deploy/config/onnx/policy.yaml), [revo3_profile.yaml](/home/liuxinyu/workspace/revoarm_teleoperation/revoarm_hardware/Revoarm_ws/src/brainco_capabilities/revo3_rl_deploy/config/robot_profile/revo3_profile.yaml), [revo3_controllers.yaml](/home/liuxinyu/workspace/revoarm_teleoperation/revoarm_hardware/Revoarm_ws/src/brainco_drivers/revo3_driver/config/revo3_controllers.yaml), [Revo3MITCommand.msg](/home/liuxinyu/workspace/revoarm_teleoperation/revoarm_hardware/Revoarm_ws/src/brainco_controllers/revo3_mit_controller_msgs/msg/Revo3MITCommand.msg).
 
-## 1. 数据流
+## Existing Deployment Structure
 
+Relevant packages:
+- `revo3_rl_deploy`: current Revo3 RL/trajectory deployment package.
+- `revo3_driver`: standalone and dual Revo3 ros2_control hardware launch/config.
+- `revo3_mit_controller` and `revo3_mit_controller_msgs`: MIT command controller and message.
+- `revo3_description`: URDF/xacro joint names, axes, and limits.
+- `manus_revo3_retarget`: active Manus-to-Revo3 command publisher, useful for topic/interface context only.
+- `replay` and `lerobot_deploy`: existing action/trajectory replay tools, but they publish to controllers and are not safe offline policy replay.
+
+Relevant current nodes/tools:
+- `revo3_policy_node`: subscribes Revo3 `JointState`, builds Stage 2 ONNX inputs, runs ONNX Runtime, publishes `Revo3MITCommand`.
+- `revo3_trajectory_replay` via `replay.py`: replays `.target.txt` trajectories to the MIT controller.
+- `revo3_param_tuner`: publishes `/revo3_param_tuner/{kp,kd,offset}` for active replay tuning.
+- `forward_quintic_command.py` and `arm_hand_cylinder_demo.py`: active command tools; demo has `--dry-run` but still constructs publishers.
+- `revo3_rl_deploy.launch.py`: launches only the active policy node, assuming `revo3_driver` is already running.
+
+Missing today:
+- No `policy_manifest.yaml`, `obs_normalizer.npz`, or `golden_io.npz` was found.
+- The IDE tab `MODEL_ACTION_EXTRACTION_README.md` was not present in this checkout.
+
+## Runtime Action Path
+
+Current active path:
+1. Revo3 joint states come from `/revo3_<side>/revo3_joint_state/joint_states`, produced by `joint_state_broadcaster`.
+2. Hardware state is read by `Revo3HandHardware`; SDK degrees/rpm are converted to ROS radians/rad/s.
+3. `Stage2InputBuilder` constructs:
+   - `obs`: `float32[1,126]`, last 3 frames × 42.
+   - `proprio_hist`: `float32[1,30,42]`.
+   - Per-frame schema: `[normalized_joint_pos(21), current_target_rad(21)]`.
+4. `revo3_policy_node` calls ONNX Runtime.
+5. Post-processing clips raw action to `[-1, 1]`, applies `target_next = clip(target_prev + action_scale * action, joint_limits)`.
+6. Output is permuted from policy order to controller order, `sim2real_joint_offset` is added, and `Revo3MITCommand` is published.
+7. `Revo3MITController` writes `position`, `velocity`, `effort`, `kp`, `kd` command interfaces.
+8. `Revo3HandHardware.write()` converts rad to degrees, rad/s to rpm, keeps effort as mA, and calls SDK `send_mit_command`.
+
+Replay-mode stop point:
+- Offline policy replay must stop after step 5 or optional controller-order conversion.
+- It must not create a ROS publisher, publish `Revo3MITCommand`, start `revo3_driver`, or call controller/hardware code.
+
+## Revo3 Hand Interface Assumptions
+
+DoF and units:
+- 21 DoF.
+- ROS/deployment joint position units are radians.
+- Velocity is rad/s.
+- MIT effort field is mA torque feedforward.
+- Hardware SDK internally uses degrees/rpm, but deployment-facing policy replay must stay in radians.
+
+Policy joint order, current right-hand artifact:
 ```text
-模型 / 仿真环境
-  -> 导出 .target.txt
-  -> replay.py 读取轨迹和 revo3_profile.yaml
-  -> 重排到 controller_joint_order
-  -> clip 到 joint_limits
-  -> 加 sim2real_joint_offset
-  -> 发布 Revo3MITCommand
+right_index_MPR_joint, right_little_MPR_joint, right_middle_MPR_joint, right_ring_MPR_joint, right_thumb_CMP_joint,
+right_index_MCP_joint, right_little_MCP_joint, right_middle_MCP_joint, right_ring_MCP_joint, right_thumb_CMR_joint,
+right_index_PIP_joint, right_little_PIP_joint, right_middle_PIP_joint, right_ring_PIP_joint, right_thumb_MCP_joint,
+right_index_DIP_joint, right_little_DIP_joint, right_middle_DIP_joint, right_ring_DIP_joint, right_thumb_PIP_joint,
+right_thumb_DIP_joint
 ```
 
-`replay.py` 发布的目标位置为：
-
+Controller/SDK order:
 ```text
-real_command = clipped_sim_target + sim2real_joint_offset
+little MPR/MCP/PIP/DIP, ring MPR/MCP/PIP/DIP, middle MPR/MCP/PIP/DIP,
+index MPR/MCP/PIP/DIP, thumb MCP/PIP/DIP/CMP/CMR
 ```
 
-其中 `sim2real_joint_offset` 和 `joint_limits` 来自
-`config/robot_profile/revo3_profile.yaml`。
+Limits from profile/URDF:
+- Non-thumb `MPR`: `[-0.2618, 0.2618]`.
+- Thumb `CMP`: `[0.0, 1.9199]`.
+- Thumb `CMR`: `[0.0, 2.0071]`.
+- Thumb `MCP`: `[0.0, 0.8727]`.
+- All other flexion joints: `[0.0, 1.4835]`.
+- Positive direction is available through URDF axes, but no human-readable convention is documented; replay should record the manifest’s convention and not infer mirroring.
 
-## 2. 必需文件
+Command mode:
+- Active deployment command is absolute MIT position target plus optional velocity/kp/kd/effort.
+- Policy output is normalized delta action, not a direct hardware command.
+- Important mismatch to resolve in the new artifact contract: current `policy.yaml` says scale `1/24`, while current `revo3_profile.yaml` uses `action_scale: 0.02`.
 
-### 2.1 轨迹文件
+## Replay-Mode Definition
 
-模型动作提取脚本需要输出一个 `.target.txt` 文件，例如：
+Replay mode validates:
+- Artifact layout and manifest contract.
+- Normalizer loading and shapes.
+- Dataset-to-observation construction.
+- Policy inference output shape and finite values.
+- Action clipping, action scaling, target integration, joint-limit clamp.
+- Golden I/O reproduction.
+- Deterministic replay log generation.
 
-```text
-config/ep00_cylinder_ppo_0516_192310.target.txt
-```
+Replay mode must not:
+- Start ROS launch files or controller managers.
+- Subscribe to live robot topics.
+- Create publishers or action clients.
+- Publish `Revo3MITCommand`, `Float64MultiArray`, or trajectory actions.
+- Open serial/Modbus/CAN devices.
+- Depend on Docker script changes.
 
-如果运行 `replay.py` 时不显式传入轨迹路径，默认读取：
+Inputs:
+- `--artifact-dir`: contains model, manifest, normalizer, golden I/O.
+- `--replay-data`: offline joint-state/target frames.
+- `--robot-profile`: deployment clamp/order/offset profile.
+- `--hand-side`: default `right`; no implicit left/right mirroring.
+- `--output`: output directory or JSONL path.
+- `--strict`: fail on any warning-grade contract mismatch.
 
-```text
-config/ep00_cylinder_ppo_0516_192310.target.txt
-```
+Outputs:
+- Per-step replay JSONL.
+- Numeric arrays in `.npz` for analysis.
+- Summary JSON/YAML containing manifest metadata, hashes, counts, max errors, warnings, and pass/fail status.
 
-### 2.2 Robot Profile
+Replay vs shadow vs active:
+- Replay: offline data only, no ROS I/O, no hardware.
+- Shadow: live robot observations, policy/log output, no command publisher.
+- Active: live observations and command publication to controller after replay and shadow pass.
 
-`replay.py` 默认读取：
+## Training Artifact Requirements
 
-```text
-config/robot_profile/revo3_profile.yaml
-```
-
-该文件提供：
-
-- `controller_joint_order`
-- `joint_limits`
-- `sim2real_joint_offset`
-- `action_scale`
-- `command_topic`
-
-### 2.3 Policy Metadata
-
-`config/onnx/policy.yaml` 可作为模型导出元信息参考，例如关节顺序、策略频率、
-动作语义等。
-
-注意：`replay.py` 当前主版本不读取 `policy.yaml`，它只读取 `.target.txt`
-和 `revo3_profile.yaml`。
-
-## 3. .target.txt 格式
-
-`.target.txt` 是纯文本文件，包含两部分：
-
-1. 以 `#` 开头的元信息 header。
-2. 每一帧的 `target=[...]` 数据。
-
-### 3.1 必需 Header
-
-建议每个 `.target.txt` 至少包含以下字段：
-
-| 字段 | 示例 | 说明 |
-|------|------|------|
-| `policy_dt_sec` | `# policy_dt_sec=0.050000` | 策略基础周期，20 Hz 时为 0.05 秒 |
-| `policy_hz` | `# policy_hz=20.000000` | 策略基础频率 |
-| `action_semantics` | `# action_semantics=delta` | 模型原始 action 的语义 |
-| `action_formula` | `# action_formula=target=prev_target+(1/24)*raw_action then clamp(joint_limits)` | 训练/仿真中 action 到 target 的公式 |
-| `joint_order` | `# joint_order=0:right_index_MPR_joint, ...` | 轨迹中 21 个数值的关节顺序 |
-
-`joint_order` 的每一项必须是 `序号:关节名` 格式，并且必须包含 21 个互不重复的
-关节名。`replay.py` 会根据这个顺序把轨迹重排到 `controller_joint_order`。
-
-### 3.2 推荐 Header
-
-为了便于追溯模型版本和导出含义，建议同时写入：
-
-| 字段 | 示例 | 说明 |
-|------|------|------|
-| `task` | `# task=cylinder` | 任务名称 |
-| `algo` | `# algo=PPO` | 训练算法 |
-| `checkpoint` | `# checkpoint=/path/to/best.pth` | checkpoint 来源 |
-| `raw_action_definition` | `# raw_action_definition=policy clamped delta output mu (pre delta-integration, [-1,1])` | 原始 action 的定义 |
-| `target_definition` | `# target_definition=cur_targets (delta-accumulated + joint-limit clamped, used in PD formula)` | target 的定义 |
-| `jointpos_definition` | `# jointpos_definition=hand.data.joint_pos (absolute joint angles, rad)` | 关节状态定义 |
-| `init_joint_pos` | `# init_joint_pos=right_index_MPR_joint=-0.235620, ...` | 仿真起始关节角 |
-
-### 3.3 帧数据格式
-
-每一帧必须包含 21 个浮点数：
+Training must export one directory:
 
 ```text
-frame=000 t= 0.000s reward=+2.294080 done=0 target=[-0.209690, +0.193953, ...]
-frame=001 t= 0.050s reward=+2.892635 done=0 target=[-0.232908, +0.184322, ...]
+artifact_dir/
+  policy.onnx
+  policy_manifest.yaml
+  obs_normalizer.npz
+  golden_io.npz
+  replay_dataset.npz        # optional but recommended
 ```
 
-解析要求：
+`policy.onnx`:
+- ONNX Runtime compatible.
+- Named inputs exactly `obs` and `proprio_hist`.
+- `obs`: `float32[B,126]`.
+- `proprio_hist`: `float32[B,30,42]`.
+- Output `action`: `float32[B,21]`.
+- Dynamic batch allowed; replay uses `B=1`.
 
-- 行首必须包含 `frame=<整数>`。
-- 必须包含 `t=<秒数>s`。
-- 必须包含 `target=[...]`。
-- `target` 内必须正好有 21 个浮点数。
-- 浮点数可以用逗号、空格或逗号加空格分隔。
-- `t` 必须严格递增。
-- 相邻帧时间间隔必须一致；如果 header 中有 `policy_dt_sec`，则每帧间隔应与它一致。
-- `replay.py` 当前允许的最大时间间隔误差为 `1e-4` 秒。
+`policy_manifest.yaml` required fields:
+- `schema_version`, `robot: revo3`, `hand_side`.
+- `model.path`, `model.format: onnx`, `model.sha256`.
+- `policy_rate_hz`, `policy_dt_sec`, `history_len: 30`, `obs_frames: 3`, `obs_per_step: 42`.
+- `inputs` and `outputs` with names, shapes, dtypes.
+- `joint_order_policy`, `controller_joint_order`, `joint_limits_rad`.
+- `observation_schema`: first 21 normalized joint positions, next 21 current target radians.
+- `normalization`: external normalizer convention, array names, epsilon, optional clip.
+- `action`: `semantics: delta_position`, `clip: [-1, 1]`, `scale`, `target_clamp: joint_limits_rad`.
+- `units`: joint position radians, velocity rad/s, effort mA.
+- `training_metadata`: repo commit, checkpoint id, task name, export time.
 
-20 Hz 策略的标准时间戳通常是：
+`obs_normalizer.npz`:
+- `obs_mean`: shape `(126,)`.
+- `obs_std`: shape `(126,)`.
+- `proprio_hist_mean`: shape `(30,42)`.
+- `proprio_hist_std`: shape `(30,42)`.
+- `epsilon`: scalar.
+- Optional `clip`: scalar or two-value range.
+- If normalization is intentionally baked into the model, export identity arrays and mark that explicitly in the manifest.
 
-```text
-0.000, 0.050, 0.100, 0.150, ...
-```
+`golden_io.npz`:
+- `joint_pos_policy_order`: `(T,21)` or at least `(1,21)`.
+- `initial_target_policy_order`: `(21,)`.
+- `obs_raw`: `(T,126)`.
+- `proprio_hist_raw`: `(T,30,42)`.
+- `obs_normalized`: `(T,126)`.
+- `proprio_hist_normalized`: `(T,30,42)`.
+- `action_raw`: `(T,21)`.
+- `action_clipped`: `(T,21)`.
+- `target_post_clip_policy_order`: `(T,21)`.
+- Optional `target_controller_order_with_offset`: `(T,21)`.
 
-## 4. 推荐导出语义
+Replay dataset format:
+- Preferred `.npz`: `timestamp_sec (N,)`, `joint_pos_policy_order (N,21)`, optional `target_init (21,)`, optional `expected_action (N,21)`.
+- JSONL is acceptable if it carries the same fields per frame.
+- Timestamps must be strictly increasing.
 
-### 4.1 推荐：导出绝对目标关节角
+## Validation And Fail-Fast Checks
 
-推荐导出训练/仿真中已经积分、限幅后的目标关节角：
+Required fail-fast checks:
+- `obs_dim == 126`, `action_dim == 21`, `history_len == 30`, `obs_per_step == 42`.
+- ONNX input/output names, dtypes, and shapes match manifest.
+- Normalizer arrays exactly match required shapes and contain finite values.
+- `joint_order_policy` exactly matches replay data and golden I/O.
+- `controller_joint_order` is a permutation of the same 21 joints.
+- Joint limits exist for every policy joint and `upper > lower`.
+- All replay inputs, observations, normalizer outputs, model outputs, and post-processed actions are finite.
+- Raw action shape is `(21,)`; clipped action is within `[-1,1]`.
+- Integrated targets remain within limits after clamp.
+- Replay timestamps are strictly increasing; fixed-rate datasets must match `policy_dt_sec` within configured tolerance.
+- Manifest `action.scale` must match deployment profile unless an explicit CLI override is provided and logged.
+- No-hardware guarantee: replay executable must not create ROS publishers/action clients or import driver/controller modules.
 
-```text
-target = cur_targets
-```
+## Proposed CLI
 
-这种文件应使用：
+Preferred safe command:
 
 ```bash
-ros2 run revo3_rl_deploy replay.py \
-  <your_trajectory.target.txt> \
+ros2 run revo3_rl_deploy revo3_policy_replay \
+  --artifact-dir /path/to/revo3_policy_export \
+  --replay-data /path/to/replay_dataset.npz \
+  --robot-profile /path/to/revo3_profile.yaml \
   --hand-side right \
-  --mode absolute
+  --output /tmp/revo3_policy_replay \
+  --strict
 ```
 
-在 `absolute` 模式下，`replay.py` 将每帧 `target=[...]` 视为仿真空间绝对关节角，
-然后执行：
-
-```text
-target_scaled = first_frame + trajectory_scale * (target - first_frame)
-target_clipped = clip(target_scaled, joint_limits)
-real_command = target_clipped + sim2real_joint_offset
-```
-
-### 4.2 可选：导出原始 Delta Action
-
-如果导出的是模型原始 action，而不是已经积分后的 `cur_targets`，则只能用：
+Plain Python entry should do the same:
 
 ```bash
-ros2 run revo3_rl_deploy replay.py \
-  <your_actions.target.txt> \
-  --hand-side right \
-  --mode delta
+python3 -m revo3_rl_deploy.policy_replay_cli \
+  --artifact-dir /path/to/revo3_policy_export \
+  --replay-data /path/to/replay_dataset.npz \
+  --robot-profile /path/to/revo3_profile.yaml \
+  --output /tmp/revo3_policy_replay \
+  --strict
 ```
 
-在 `delta` 模式下，`target=[...]` 会被解释为 raw action，并按以下公式积分：
+CLI must not expose `--command-topic`, `--joint-state-topic`, or any hardware/control option.
 
-```text
-action_clipped = clip(action, -1.0, 1.0)
-target_next = target_prev + trajectory_scale * action_scale * action_clipped
-target_next = clip(target_next, joint_limits)
-real_command = target_next + sim2real_joint_offset
-```
+## Output Log Format
 
-`action_scale` 来自 `revo3_profile.yaml`。如果模型训练时使用的是 `1/24`，
-但 profile 中配置为其他值，回放动作幅度会不同。
+Write `replay_steps.jsonl`, one frame per line:
+- `frame_index`
+- `timestamp_sec`
+- `manifest_id`, `model_sha256`
+- `joint_pos_policy_order`
+- `target_prev_policy_order`
+- `obs_raw`
+- `obs_normalized`
+- `proprio_hist_raw`
+- `proprio_hist_normalized`
+- `action_raw`
+- `action_clipped`
+- `target_post_clip_policy_order`
+- optional `target_controller_order_with_offset`
+- `warnings`
 
-## 5. 当前已验证回放参数
+Write `replay_arrays.npz` with the same numeric arrays for plotting and comparison.
 
-当前用于圆柱抓取效果较好的 replay 参数为：
-
-```bash
-ros2 run revo3_rl_deploy replay.py \
-  --hand-side right \
-  --mode absolute \
-  --rate-scale 0.5 \
-  --trajectory-scale 0.3 \
-  --kp 1.0 \
-  --kd 0.5
-```
-
-含义：
-
-- `--mode absolute`：轨迹中的 `target` 是仿真空间绝对目标关节角。
-- `--rate-scale 0.5`：以原轨迹 0.5 倍速度播放；20 Hz 轨迹实际约 10 Hz 回放。
-- `--trajectory-scale 0.3`：围绕第一帧把动作幅度缩小到 30%。
-- `--kp 1.0`：MIT 控制器位置增益。
-- `--kd 0.5`：MIT 控制器阻尼增益。
-
-## 6. 最小可用文件示例
-
-```text
-# task=cylinder
-# algo=PPO
-# checkpoint=/path/to/checkpoint.pth
-# policy_dt_sec=0.050000
-# policy_hz=20.000000
-# action_semantics=delta
-# action_formula=target=prev_target+(1/24)*raw_action then clamp(joint_limits)
-# raw_action_definition=policy clamped delta output mu (pre delta-integration, [-1,1])
-# target_definition=cur_targets (delta-accumulated + joint-limit clamped, used in PD formula)
-# jointpos_definition=hand.data.joint_pos (absolute joint angles, rad)
-# joint_order=0:right_index_MPR_joint, 1:right_little_MPR_joint, 2:right_middle_MPR_joint, 3:right_ring_MPR_joint, 4:right_thumb_CMP_joint, 5:right_index_MCP_joint, 6:right_little_MCP_joint, 7:right_middle_MCP_joint, 8:right_ring_MCP_joint, 9:right_thumb_CMR_joint, 10:right_index_PIP_joint, 11:right_little_PIP_joint, 12:right_middle_PIP_joint, 13:right_ring_PIP_joint, 14:right_thumb_MCP_joint, 15:right_index_DIP_joint, 16:right_little_DIP_joint, 17:right_middle_DIP_joint, 18:right_ring_DIP_joint, 19:right_thumb_PIP_joint, 20:right_thumb_DIP_joint
-
-frame=000 t= 0.000s target=[-0.209690, +0.193953, +0.042161, +0.182710, +1.724058, +1.198168, +1.248383, +1.020873, +0.980713, +1.351662, +0.342860, +0.343299, +0.283374, +0.209623, +0.395100, +0.024630, +0.039816, +0.096571, +0.172623, +0.306406, +0.051092]
-frame=001 t= 0.050s target=[-0.232908, +0.184322, +0.083828, +0.181677, +1.695497, +1.228145, +1.206717, +0.983606, +0.996325, +1.373837, +0.365335, +0.301633, +0.241707, +0.198014, +0.436767, +0.000000, +0.064259, +0.138238, +0.214290, +0.264739, +0.051247]
-```
-
-## 7. 提取脚本检查清单
-
-导出新轨迹前，确认：
-
-- 每帧 `target` 都是 21 维。
-- `joint_order` 与 `target` 数值顺序完全一致。
-- `joint_order` 中的关节名能在 `revo3_profile.yaml` 的 `controller_joint_order`
-  和 `joint_limits` 中找到。
-- 时间戳严格递增，且间隔固定。
-- 若使用 `--mode absolute`，`target` 是仿真空间绝对目标关节角。
-- 若使用 `--mode delta`，`target` 是 raw action，且 `action_scale` 与训练设置一致。
-- 所有角度单位为 rad。
-- 不要在 `.target.txt` 中写入已经加过 `sim2real_joint_offset` 的真机命令；
-  offset 由 `replay.py` 统一添加。
+Write `summary.yaml`:
+- artifact paths and hashes
+- manifest metadata
+- frame count and duration
+- max abs golden errors for obs/action/target
+- clipping counts
+- validation status
+- warnings

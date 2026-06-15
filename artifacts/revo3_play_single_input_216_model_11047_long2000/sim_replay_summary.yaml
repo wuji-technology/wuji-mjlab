@@ -1,0 +1,54 @@
+artifact_path: artifacts/revo3_play_single_input_216_model_11047_long2000
+artifact_dir: artifacts/revo3_play_single_input_216_model_11047_long2000
+mode: action_open_loop
+task: Revo3RightHand_Reorient_ReposeReward_FineTune
+steps: 2000
+total_available_frames: 2000
+replayed_frames: 2000
+requested_max_steps: null
+loop_enabled: false
+env_step_dt: 0.05
+replay_duration_sec: 100.0
+device: cuda:0
+viewer: native
+video_enabled: true
+video_dir: artifacts/revo3_play_single_input_216_model_11047_long2000/videos
+video_length: 2000
+video_width: 640
+video_height: 480
+output_video: artifacts/revo3_play_single_input_216_model_11047_long2000/videos/sim-replay-step-0.mp4
+action_source: action_raw
+action_source_reason: manifest_declares_raw_policy_action_and_task_side_raw_action_clamp
+policy_input_normalized_used: false
+policy_step_source: null
+max_abs_diff_saved_vs_replayed_action: 0.0
+max_abs_diff_recomputed_vs_action_raw: null
+max_joint_pos_abs_error: 0.22066161036491394
+max_object_state_abs_error: 0.058823393657803535
+max_goal_state_abs_error: 0.0
+max_qpos_error_abs_error: 0.6706486842595041
+max_target_post_clip_abs_error: 0.0
+environment:
+  task: Revo3RightHand_Reorient_ReposeReward_FineTune
+  num_envs: 1
+  fixed_object_init: true
+  single_goal: true
+  fixed_goal: true
+  fixed_goal_axis: z
+  fixed_goal_deg: 90.0
+  cube_offset_in_palm: null
+  no_terminations: true
+  zero_robot_pitch_reset: true
+output_log: artifacts/revo3_play_single_input_216_model_11047_long2000/sim_replay_log.npz
+output_summary: artifacts/revo3_play_single_input_216_model_11047_long2000/sim_replay_summary.yaml
+state_reproduction:
+  status: not_guaranteed
+  exact_reproduction_guaranteed: false
+  missing_fields_for_exact_reproduction:
+  - initial MuJoCo qpos/qvel/act/ctrl and warm-start state
+  - robot/object velocities and any applied forces
+  - action-manager previous target/effective-action state
+  - observation-history buffers
+  - command-manager timers and sampled goal state
+  - randomization-expanded model parameters
+  - torch/numpy/python RNG states

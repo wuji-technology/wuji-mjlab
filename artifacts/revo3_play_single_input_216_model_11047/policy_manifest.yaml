@@ -1,0 +1,137 @@
+schema_version: revo3_play_single_input_216_v1
+task_name: Revo3RightHand_Reorient_ReposeReward_FineTune
+checkpoint:
+  path: logs/rsl_rl/revo3_reorient/2026-06-13_10-50-05_Revo3_Reorient_ReposeReward_FineTune_RobustDR_4gpu_from10048_1000it/model_11047.pt
+  sha256: cbd00ed958c21539faf6bfcc3d675fbd82e448b5838173fbcc54c795fcfea018
+export_time: '2026-06-14T13:42:25.627482+00:00'
+training_repo_commit: 3d35cf835c570956858361c40b173df24544762e
+play_script: play_rsl_rl_zero_wrist_pitch.py
+rollout_flags:
+  task: Revo3RightHand_Reorient_ReposeReward_FineTune
+  num_steps: 1000
+  fixed_object_init: true
+  single_goal: true
+  fixed_goal: true
+  fixed_goal_axis: z
+  fixed_goal_deg: 90.0
+  cube_offset_in_palm: null
+  no_terminations: true
+  device: null
+model:
+  file: policy.onnx
+  sha256: aa5d67595848fa0a8136be87e40ac7f9583bfcde9ebac3fbff43d7f83f32ae5f
+  format: onnx
+model_input_kind: raw_obs_with_normalizer_inside_model
+inputs:
+- name: obs
+  shape:
+  - 1
+  - 216
+  dtype: float32
+  semantics: raw concatenated policy observation
+outputs:
+- name: actions
+  shape:
+  - 1
+  - 21
+  dtype: float32
+  semantics: raw deterministic policy action mean
+input_field_slices:
+- name: noisy_joint_angles
+  start: 0
+  end: 63
+  shape:
+  - 3
+  - 21
+  semantics: Joint positions normalized by soft joint limits; play mode disables policy
+    observation corruption, so this is clean despite the term name.
+- name: qpos_error
+  start: 63
+  end: 126
+  shape:
+  - 3
+  - 21
+  semantics: normalized_joint_pos - normalized_processed_target
+- name: cube_pos_in_tag
+  start: 126
+  end: 135
+  shape:
+  - 3
+  - 3
+  semantics: Cube root position in wrist/tag frame.
+- name: cube_ori_error
+  start: 135
+  end: 153
+  shape:
+  - 3
+  - 6
+  semantics: 6D rotation error between cube and goal in tag-frame convention.
+- name: action_history
+  start: 153
+  end: 216
+  shape:
+  - 3
+  - 21
+  semantics: Previous raw policy actions before action-manager processing.
+policy_joint_order:
+- right_thumb_CMP_joint
+- right_thumb_CMR_joint
+- right_thumb_MCP_joint
+- right_thumb_PIP_joint
+- right_thumb_DIP_joint
+- right_index_MPR_joint
+- right_index_MCP_joint
+- right_index_PIP_joint
+- right_index_DIP_joint
+- right_middle_MPR_joint
+- right_middle_MCP_joint
+- right_middle_PIP_joint
+- right_middle_DIP_joint
+- right_ring_MPR_joint
+- right_ring_MCP_joint
+- right_ring_PIP_joint
+- right_ring_DIP_joint
+- right_little_MPR_joint
+- right_little_MCP_joint
+- right_little_PIP_joint
+- right_little_DIP_joint
+units:
+  joint_position: rad
+  cube_position: m
+  quaternion: wxyz
+  policy_action: dimensionless
+normalization:
+  type: EmpiricalNormalization
+  applied_inside_model: true
+  external_preprocessing_required: false
+  epsilon: 0.01
+  array_names:
+    mean: input_mean
+    std: input_std
+    epsilon: epsilon
+    var: input_var
+    count: count
+action:
+  semantics: default_joint_position_offset_to_absolute_target
+  raw_action_clamp:
+  - -1.0
+  - 1.0
+  action_scale: 0.5
+  ema_alpha: 0.5
+  warmup_time_s: 0.4
+  target_clamp: soft_joint_position_limits
+fixed_goal:
+  enabled: true
+  axis: z
+  degrees: 90.0
+  quat_tag_wxyz:
+  - 0.7071067811865476
+  - 0.0
+  - 0.0
+  - 0.7071067811865475
+compatibility:
+  matches_model_action_extraction_readme: false
+  old_expected_schema: obs[126] + proprio_hist[30,42]
+  actual_schema: single_input[216]
+  reason: This checkpoint exposes one raw 216-D obs input with the empirical normalizer
+    inside the policy graph, not obs[126] plus proprio_hist[30,42].
