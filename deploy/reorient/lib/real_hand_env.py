@@ -45,8 +45,8 @@ class RealHandEnv(ManagerBasedRlEnv):
         Args:
             cfg: deploy-side ManagerBasedRlEnvCfg (from make_real_hand_env_cfg).
             hand_driver: HandDriverBase subclass. Defaults to MockHandDriver
-                (for testing without hardware); inject WujiHandDriver for real-
-                hand deployment.
+                (for testing without hardware); inject a robot-specific driver
+                for real-hand deployment.
 
         Note:
             The legacy ``hand_base_pose_w`` arg was removed: cube and goal
@@ -103,7 +103,6 @@ class RealHandEnv(ManagerBasedRlEnv):
         # ── 1) Action pipeline (compute only, no ctrl write) ──
         self.action_manager.process_action(action.to(self.device))
         processed = self.action_manager.get_term("joint_pos").processed_action
-        # (1, 20) tensor
 
         # ── 2-3) Hardware IO + sensors (with watchdog) ──
         processed_np = processed[0].cpu().numpy()
@@ -153,7 +152,9 @@ class RealHandEnv(ManagerBasedRlEnv):
         self._io_failure_streak = 0
         env_ids = torch.tensor([0], device=self.device)
 
-        # Hand joint angles (20)
+        joint_angles = self._validate_joint_vector(joint_angles, "joint_angles")
+
+        # Hand joint angles in sim/policy order.
         self.scene["robot"].write_joint_position_to_sim(
             torch.from_numpy(joint_angles).float().unsqueeze(0).to(self.device),
             env_ids=env_ids,
@@ -194,7 +195,10 @@ class RealHandEnv(ManagerBasedRlEnv):
 
         # 1) Home hand & read back qpos (assumes home() blocks until complete)
         self._hand.home()
-        home_qpos = self._hand.read_encoders()
+        home_qpos = self._validate_joint_vector(
+            self._hand.read_encoders(),
+            "home_qpos",
+        )
 
         # 2) Write home qpos to sim.data
         # (robot root pose is fixed-base, set at compile time from init_state)
@@ -220,7 +224,11 @@ class RealHandEnv(ManagerBasedRlEnv):
         # prior trial leaks into obs term joint_pos_target_error via
         # action_manager.get_term().processed_action read.
         self.action_manager.process_action(
-            torch.zeros(self.num_envs, self.action_manager.total_action_dim, device=self.device)
+            torch.zeros(
+                self.num_envs,
+                self.action_manager.total_action_dim,
+                device=self.device,
+            )
         )
 
         # 4) FK refresh + compute initial obs (fast CPU mj path, ~0.03ms)
@@ -235,24 +243,31 @@ class RealHandEnv(ManagerBasedRlEnv):
     # ────────────────── helpers ──────────────────
 
     def _validate_joint_order(self) -> None:
-        """Assert wujihandpy encoder order == sim joint order."""
+        """Assert driver encoder order == sim joint order."""
         sim_names = tuple(self.scene["robot"].joint_names)
         encoder_names = tuple(self._hand.joint_names_in_encoder_order())
         assert sim_names == encoder_names, (
-            f"Joint order mismatch between MJCF and wujihandpy encoder enumeration:\n"
+            f"Joint order mismatch between MJCF and hand driver encoder order:\n"
             f"  sim: {sim_names}\n"
             f"  enc: {encoder_names}\n"
-            "Likely causes: stale wujihandpy version (pin `wujihandpy==1.5.1`) or "
-            "modified MJCF joint order. To recover, re-check that the MJCF in "
-            "src/wuji_mjlab/assets/robots/wuji_hand/ matches the JOINT_NAMES_20 enum "
-            "the hand firmware ships with."
+            "Likely causes: stale hand SDK/profile joint order or modified MJCF "
+            "joint order. Fix the robot profile/driver mapping before deploying."
         )
 
     def _clamp_to_joint_limits(self, qpos: np.ndarray) -> np.ndarray:
         """Soft-joint-pos-limits clamp (matches the training JointPositionOffsetEMAAction)."""
+        qpos = self._validate_joint_vector(qpos, "qpos")
         soft = self.scene["robot"].data.soft_joint_pos_limits[0].cpu().numpy()
-        # (20, 2) → low, high
         return np.clip(qpos, soft[:, 0], soft[:, 1])
+
+    def _validate_joint_vector(self, value: np.ndarray, name: str) -> np.ndarray:
+        vector = np.asarray(value, dtype=np.float64).reshape(-1)
+        expected = len(self.scene["robot"].joint_names)
+        if vector.shape != (expected,):
+            raise ValueError(f"{name} shape {vector.shape}, expected ({expected},).")
+        if not np.isfinite(vector).all():
+            raise ValueError(f"{name} contains NaN/Inf.")
+        return vector
 
     def _fast_forward(self) -> None:
         """Replace self.sim.forward() (~280ms on CPU) with mj_forward (~0.03ms).

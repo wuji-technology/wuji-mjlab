@@ -17,13 +17,16 @@ Key points:
 """
 from __future__ import annotations
 
-from wuji_mjlab.tasks.reorient.reorient_env_cfg import make_reorient_env_cfg
-from wuji_mjlab.assets.robots.wuji_hand.wuji_hand_cfg import get_wuji_hand_cfg
 from wuji_mjlab.assets.objects.inhand_object.object_cfg import get_inhand_object_cfg
+from wuji_mjlab.assets.robots.wuji_hand.wuji_hand_cfg import get_wuji_hand_cfg
+from wuji_mjlab.tasks.reorient.config.revo3_hand.env_cfgs import (
+    revo3_right_hand_reorient_repose_reward_finetune_env_cfg,
+)
 from wuji_mjlab.tasks.reorient.reorient_constants import (
     REORIENT_CUBE_INIT_STATE,
     REORIENT_ROBOT_INIT_STATE,
 )
+from wuji_mjlab.tasks.reorient.reorient_env_cfg import make_reorient_env_cfg
 
 from .external_goal_command import ExternalGoalCommandTermCfg
 from .real_hand_obs import (
@@ -126,8 +129,7 @@ def make_real_hand_env_cfg(
     """Construct deploy env cfg by trimming training cfg.
 
     Args:
-        robot_variant: only "wuji_hand" (Wuji Hand) is supported for now; other
-            models can be added in the future.
+        robot_variant: "wuji_hand" or "revo3_right".
         policy_config: optional dict from ONNX sidecar JSON
             (``ONNXPolicy.config``). When provided, model-intrinsic params
             (action_scale, ema_alpha, warmup_time_s, ctrl_dt, history_len,
@@ -135,10 +137,14 @@ def make_real_hand_env_cfg(
             exactly. See ``_apply_policy_config_overrides``. Missing keys are
             skipped — the cfg keeps the training defaults for those fields.
     """
-    cfg = make_reorient_env_cfg()
-
     if robot_variant == "wuji_hand":
+        cfg = make_reorient_env_cfg()
         attach_wuji_hand_entities(cfg)
+    elif robot_variant == "revo3_right":
+        cfg = revo3_right_hand_reorient_repose_reward_finetune_env_cfg(
+            play=True,
+            num_envs=1,
+        )
     else:
         raise NotImplementedError(f"robot_variant={robot_variant!r}")
 

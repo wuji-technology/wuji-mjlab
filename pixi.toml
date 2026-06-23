@@ -58,5 +58,8 @@ pyyaml = ">=6.0"
 
 [feature.deploy.tasks]
 vision    = { cmd = "python deploy/reorient/scripts/cube_world_observer.py --preview", description = "Launch ArUco/AprilTag cube observer with OpenCV preview window (publishes cube pose on ZMQ:5555)" }
+aruco-orbbec = { cmd = "python -m deploy.vision.aruco.demo", description = "Launch Orbbec V4L2/ROS2 ArUco marker pose debug demo" }
 play-real = { cmd = "python deploy/reorient/scripts/play_real.py", description = "Run sim2real control with MuJoCo mirror viewer (pass --ckpt PATH for a non-default policy)" }
+play-revo3 = { cmd = "python deploy/reorient/scripts/play_revo3_real.py", description = "Run Revo3 dry-run/shadow policy loop (pass --artifact-dir PATH)" }
+revo3-check = { cmd = "python deploy/reorient/scripts/revo3_hand_utils.py check", description = "Read-only Revo3 SDK and encoder sanity check" }
 home      = { cmd = "python deploy/reorient/scripts/hand_utils.py home", description = "Reset all 20 joints to home pose" }

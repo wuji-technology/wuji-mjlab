@@ -25,6 +25,8 @@ def cube_pos_in_tag_from_zmq(
     object_cfg: SceneEntityCfg | None = None,
     robot_cfg: SceneEntityCfg | None = None,
     injection_prob: float = 0.0,
+    tag_in_palm_pos: tuple[float, float, float] | None = None,
+    tag_in_palm_quat: tuple[float, float, float, float] | None = None,
 ) -> torch.Tensor:
     """Tag-frame cube position, read directly from observer ZMQ feed.
 
@@ -48,6 +50,8 @@ def goal_rot_err_6d_from_zmq(
     object_cfg: SceneEntityCfg | None = None,
     robot_cfg: SceneEntityCfg | None = None,
     injection_prob: float = 0.0,
+    tag_in_palm_pos: tuple[float, float, float] | None = None,
+    tag_in_palm_quat: tuple[float, float, float, float] | None = None,
 ) -> torch.Tensor:
     """6D rotation error in tag frame, computed from tag-frame cube_quat (ZMQ)
     and tag-frame goal_quat (command term).

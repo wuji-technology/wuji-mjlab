@@ -75,6 +75,7 @@ class ReplayOptions:
   num_envs: int
   device: str | None
   max_steps: int | None
+  start_index: int
   loop: bool
   output_dir: Path | None
   action_source: ActionSource
@@ -224,34 +225,47 @@ def _resolve_replay_indices(
   dataset: dict[str, np.ndarray],
   max_steps: int | None,
   *,
+  start_index: int,
   loop: bool,
-) -> tuple[int, int, np.ndarray]:
+) -> tuple[int, int, int, np.ndarray]:
   frame_index = _require_array(dataset, "frame_index", ndim=1)
   total_frames = int(frame_index.shape[0])
   if total_frames <= 0:
     raise ValueError("Replay dataset contains no frames to replay.")
+
+  start_index = int(start_index)
+  if start_index < 0:
+    raise ValueError("--start-index must be a non-negative integer.")
+  if start_index >= total_frames:
+    raise ValueError(
+      f"Requested --start-index {start_index}, but replay_dataset.npz contains "
+      f"only {total_frames} frames."
+    )
+  available_frames = total_frames - start_index
 
   if max_steps is not None:
     steps = int(max_steps)
     if steps <= 0:
       raise ValueError("--max-steps must be a positive integer.")
   else:
-    steps = total_frames
+    steps = available_frames
 
   if steps <= 0:
     raise ValueError("Replay dataset contains no frames to replay.")
-  if steps > total_frames and not loop:
+  if steps > available_frames and not loop:
     raise ValueError(
       f"Requested --max-steps {steps}, but replay_dataset.npz contains only "
-      f"{total_frames} frames. Export a longer artifact with a larger "
-      "--num-steps value, or pass --loop to explicitly repeat the saved "
-      "trajectory."
+      f"{available_frames} frames from --start-index {start_index} "
+      f"(total frames: {total_frames}). Export a longer artifact with a larger "
+      "--num-steps value, lower --start-index, or pass --loop to explicitly "
+      "repeat the selected saved trajectory segment."
     )
 
   replay_indices = np.arange(steps, dtype=np.int64)
-  if steps > total_frames:
-    replay_indices %= total_frames
-  return steps, total_frames, replay_indices
+  if steps > available_frames:
+    replay_indices %= available_frames
+  replay_indices += start_index
+  return steps, total_frames, available_frames, replay_indices
 
 
 def _resolve_bool(
@@ -620,6 +634,9 @@ def _run_compare_only(
     "compare_only": True,
     "steps": steps,
     "total_available_frames": total_frames,
+    "start_index": options.start_index,
+    "available_frames_after_start": total_frames - options.start_index,
+    "pre_roll_steps": 0,
     "replayed_frames": steps,
     "requested_max_steps": options.max_steps,
     "loop_enabled": options.loop,
@@ -652,15 +669,20 @@ def run_replay(options: ReplayOptions) -> tuple[Path, Path, dict[str, Any]]:
   artifact_dir = options.artifact_dir
   manifest = _load_yaml(artifact_dir / "policy_manifest.yaml")
   dataset = _load_npz(artifact_dir / "replay_dataset.npz")
-  steps, total_frames, replay_indices = _resolve_replay_indices(
+  steps, total_frames, available_frames, replay_indices = _resolve_replay_indices(
     dataset,
     options.max_steps,
+    start_index=options.start_index,
     loop=options.loop,
   )
   print(f"[INFO] replay dataset frames available: {total_frames}")
+  print(f"[INFO] replay start index: {options.start_index}")
+  print(f"[INFO] replay frames available from start: {available_frames}")
   print(f"[INFO] replaying frames: {steps}")
-  if options.loop and steps > total_frames:
-    print("[INFO] --loop enabled; saved replay rows will repeat explicitly.")
+  if options.loop and steps > available_frames:
+    print(
+      "[INFO] --loop enabled; selected saved replay rows will repeat explicitly."
+    )
   output_dir = options.output_dir or artifact_dir
   output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -675,6 +697,13 @@ def run_replay(options: ReplayOptions) -> tuple[Path, Path, dict[str, Any]]:
     ndim=2,
     trailing_dim=ACTION_DIM,
   )[replay_indices].astype(np.float32)
+  pre_roll_indices = np.arange(options.start_index, dtype=np.int64)
+  pre_roll_actions = _require_array(
+    dataset,
+    action_source,
+    ndim=2,
+    trailing_dim=ACTION_DIM,
+  )[pre_roll_indices].astype(np.float32)
   action_raw = _require_array(
     dataset,
     "action_raw",
@@ -690,6 +719,16 @@ def run_replay(options: ReplayOptions) -> tuple[Path, Path, dict[str, Any]]:
       dataset,
       replay_indices,
     )
+    if (
+      pre_roll_indices.size > 0
+      and options.policy_step_source == "recomputed"
+      and not options.compare_only
+    ):
+      pre_roll_actions, _pre_roll_recompute_max_abs = _compute_onnx_actions(
+        artifact_dir,
+        dataset,
+        pre_roll_indices,
+      )
     if options.compare_only:
       return _run_compare_only(
         options,
@@ -754,6 +793,19 @@ def run_replay(options: ReplayOptions) -> tuple[Path, Path, dict[str, Any]]:
   try:
     obs, _extras = env.reset()
     _validate_policy_joint_order(env, manifest, dataset)
+
+    if pre_roll_actions.shape[0] > 0:
+      print(
+        f"[INFO] pre-rolling {pre_roll_actions.shape[0]} saved frames before "
+        "visible replay."
+      )
+      for action_row in pre_roll_actions:
+        action_tensor = torch.as_tensor(
+          action_row.reshape(1, -1),
+          dtype=torch.float32,
+          device=env.unwrapped.device,
+        )
+        obs, _rew, _dones, _extras = env.step(action_tensor)
 
     with _FiniteViewer(
       options.viewer,
@@ -925,6 +977,9 @@ def run_replay(options: ReplayOptions) -> tuple[Path, Path, dict[str, Any]]:
     "task": task_id,
     "steps": steps,
     "total_available_frames": total_frames,
+    "start_index": options.start_index,
+    "available_frames_after_start": available_frames,
+    "pre_roll_steps": int(options.start_index),
     "replayed_frames": steps,
     "requested_max_steps": options.max_steps,
     "loop_enabled": options.loop,
@@ -987,6 +1042,16 @@ def _parse_args() -> ReplayOptions:
   parser.add_argument("--num-envs", type=int, default=1)
   parser.add_argument("--device", default=None)
   parser.add_argument("--max-steps", type=int, default=None)
+  parser.add_argument(
+    "--start-index",
+    type=int,
+    default=0,
+    help=(
+      "Start replay from this row of replay_dataset.npz. Useful for skipping "
+      "reset-time contact transients while preserving saved action semantics. "
+      "Simulator replay pre-rolls the skipped rows before visible/logged replay."
+    ),
+  )
   parser.add_argument(
     "--loop",
     action="store_true",
@@ -1077,6 +1142,7 @@ def _parse_args() -> ReplayOptions:
     num_envs=args.num_envs,
     device=args.device,
     max_steps=args.max_steps,
+    start_index=args.start_index,
     loop=args.loop,
     output_dir=args.output_dir,
     action_source=args.action_source,
@@ -1103,6 +1169,13 @@ def main() -> None:
   log_path, summary_path, summary = run_replay(options)
   print(f"[INFO] artifact: {summary.get('artifact_path', options.artifact_dir)}")
   print(f"[INFO] total available frames: {summary['total_available_frames']}")
+  print(f"[INFO] replay start index: {summary['start_index']}")
+  print(
+    "[INFO] available frames after start: "
+    f"{summary['available_frames_after_start']}"
+  )
+  if "pre_roll_steps" in summary:
+    print(f"[INFO] pre-roll steps before visible replay: {summary['pre_roll_steps']}")
   print(f"[INFO] replayed frames: {summary['replayed_frames']}")
   env_step_dt = summary.get("env_step_dt")
   replay_duration_sec = summary.get("replay_duration_sec")

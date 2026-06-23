@@ -1,0 +1,149 @@
+# Revo3 right-hand deployment profile.
+#
+# policy_joint_order is the trained ONNX/action-manager order used by
+# wuji-mjlab Revo3 tasks. sdk_joint_order is the bc-stark-sdk motor order.
+
+robot: revo3
+hand: right
+default_rate_hz: 20.0
+
+sdk:
+  package: bc-stark-sdk
+  protocol: modbus
+  baudrate: 5000000
+  slave_id: 126
+  auto_detect: true
+
+mit:
+  kp: 1.0
+  kd: 0.1
+  effort_ma: 0.0
+
+# Transform physical vision wrist-tag poses into the policy tag frame.
+# Identity is intentionally marked uncalibrated: dry-run/shadow may proceed,
+# but active mode must refuse until this is measured for the Revo3 fixture.
+# vision_to_policy_frame:
+#   calibrated: false
+#   position_xyz: [0.0, 0.0, 0.0]
+#   quat_wxyz: [1.0, 0.0, 0.0, 0.0]
+vision_to_policy_frame:
+  calibrated: false
+  position_xyz: [-0.09483, 0.0, 0.01422]
+  quat_wxyz: [1.0, 0.0, 0.0, 0.0]
+
+sim2real_joint_offset:
+  order: sdk_joint_order
+  values:
+    - 0.0
+    - 0.0
+    - 0.3
+    - 0.3
+    - 0.0
+    - 0.0
+    - 0.3
+    - 0.3
+    - 0.0
+    - 0.0
+    - 0.3
+    - 0.3
+    - 0.0
+    - 0.0
+    - 0.3
+    - 0.3
+    - 0.0
+    - 0.3
+    - 0.3
+    - 0.0
+    - -0.2
+
+policy_joint_order:
+  - right_thumb_CMP_joint
+  - right_thumb_CMR_joint
+  - right_thumb_MCP_joint
+  - right_thumb_PIP_joint
+  - right_thumb_DIP_joint
+  - right_index_MPR_joint
+  - right_index_MCP_joint
+  - right_index_PIP_joint
+  - right_index_DIP_joint
+  - right_middle_MPR_joint
+  - right_middle_MCP_joint
+  - right_middle_PIP_joint
+  - right_middle_DIP_joint
+  - right_ring_MPR_joint
+  - right_ring_MCP_joint
+  - right_ring_PIP_joint
+  - right_ring_DIP_joint
+  - right_little_MPR_joint
+  - right_little_MCP_joint
+  - right_little_PIP_joint
+  - right_little_DIP_joint
+
+sdk_joint_order:
+  - right_little_MPR_joint
+  - right_little_MCP_joint
+  - right_little_PIP_joint
+  - right_little_DIP_joint
+  - right_ring_MPR_joint
+  - right_ring_MCP_joint
+  - right_ring_PIP_joint
+  - right_ring_DIP_joint
+  - right_middle_MPR_joint
+  - right_middle_MCP_joint
+  - right_middle_PIP_joint
+  - right_middle_DIP_joint
+  - right_index_MPR_joint
+  - right_index_MCP_joint
+  - right_index_PIP_joint
+  - right_index_DIP_joint
+  - right_thumb_MCP_joint
+  - right_thumb_PIP_joint
+  - right_thumb_DIP_joint
+  - right_thumb_CMP_joint
+  - right_thumb_CMR_joint
+
+home_joint_pos:
+  right_thumb_CMP_joint: 0.8
+  right_thumb_CMR_joint: 0.4
+  right_thumb_MCP_joint: 0.285
+  right_thumb_PIP_joint: 0.582
+  right_thumb_DIP_joint: 0.582
+  right_index_MPR_joint: 0.163
+  right_index_MCP_joint: 0.441
+  right_index_PIP_joint: 0.822
+  right_index_DIP_joint: 0.494
+  right_middle_MPR_joint: -0.0832
+  right_middle_MCP_joint: 0.448
+  right_middle_PIP_joint: 0.883
+  right_middle_DIP_joint: 0.305
+  right_ring_MPR_joint: -0.2618
+  right_ring_MCP_joint: 0.594
+  right_ring_PIP_joint: 1.13
+  right_ring_DIP_joint: 0.18
+  right_little_MPR_joint: -0.228
+  right_little_MCP_joint: 1.2
+  right_little_PIP_joint: 0.794
+  right_little_DIP_joint: 0.407
+
+joint_limits:
+  right_thumb_CMP_joint:  {lower:  0.000000, upper:  1.919900}
+  right_thumb_CMR_joint:  {lower:  0.000000, upper:  2.007100}
+  right_thumb_MCP_joint:  {lower:  0.000000, upper:  0.872700}
+  right_thumb_PIP_joint:  {lower:  0.000000, upper:  1.483500}
+  right_thumb_DIP_joint:  {lower:  0.000000, upper:  1.483500}
+  right_index_MPR_joint:  {lower: -0.261800, upper:  0.261800}
+  right_index_MCP_joint:  {lower:  0.000000, upper:  1.483500}
+  right_index_PIP_joint:  {lower:  0.000000, upper:  1.483500}
+  right_index_DIP_joint:  {lower:  0.000000, upper:  1.483500}
+  right_middle_MPR_joint: {lower: -0.261800, upper:  0.261800}
+  right_middle_MCP_joint: {lower:  0.000000, upper:  1.483500}
+  right_middle_PIP_joint: {lower:  0.000000, upper:  1.483500}
+  right_middle_DIP_joint: {lower:  0.000000, upper:  1.483500}
+  right_ring_MPR_joint:   {lower: -0.261800, upper:  0.261800}
+  right_ring_MCP_joint:   {lower:  0.000000, upper:  1.483500}
+  right_ring_PIP_joint:   {lower:  0.000000, upper:  1.483500}
+  right_ring_DIP_joint:   {lower:  0.000000, upper:  1.483500}
+  right_little_MPR_joint: {lower: -0.261800, upper:  0.261800}
+  right_little_MCP_joint: {lower:  0.000000, upper:  1.483500}
+  right_little_PIP_joint: {lower:  0.000000, upper:  1.483500}
+  right_little_DIP_joint: {lower:  0.000000, upper:  1.483500}
