@@ -225,8 +225,9 @@ This project builds on the following open-source projects:
 - [Jielin Wu](https://github.com/AIRJASON50)
 - [Shenzhe Yao](https://github.com/LeopoldYao)
 - [Han Yang](https://github.com/yanghan-a)
-- [Li Chengmeng](https://github.com/AsahelLee)
+- [Xiangrui Jiang](https://github.com/XiangruiJiang)
 - [Wentao Zhang](https://github.com/zhangwt20011015)
+- [Li Chengmeng](https://github.com/AsahelLee)
 - [Xiaohan Liu](https://github.com/Infas12)
 - [Guanqi He](https://github.com/GuanqiHe)
 
