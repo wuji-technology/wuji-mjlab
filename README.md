@@ -226,6 +226,9 @@ This project builds on the following open-source projects:
 - [Shenzhe Yao](https://github.com/LeopoldYao)
 - [Han Yang](https://github.com/yanghan-a)
 - [Li Chengmeng](https://github.com/AsahelLee)
+- [Wentao Zhang](https://github.com/zhangwt20011015)
+- [Xiaohan Liu](https://github.com/Infas12)
+- [Guanqi He](https://github.com/GuanqiHe)
 
 ## Citation
 
