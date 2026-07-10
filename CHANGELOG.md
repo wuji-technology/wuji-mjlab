@@ -3,18 +3,25 @@
 All notable changes to this project will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+and this project uses calendar versioning (YYYY.M.D).
 
 ## [Unreleased]
 
 ### Added
 
-- sim2real setup: dimensioned hand-jig assembly drawing (`assembly.pdf`)
-  shipped in the release bundle and referenced from §5.1.
+- Added a dimensioned hand-jig assembly drawing to the release bundle.
 
 ### Changed
 
-- sim2real setup §5.1: replace approximate breadboard wording with the
-  actual assembly-drawing specs (overall height, 10° back-tilt, M6 hole
-  grid, base counterbore pattern, general tolerances); keep the English
-  and Chinese guides aligned.
+- Updated the sim-to-real hardware guide with exact jig assembly specs
+  (overall height, back-tilt angle, mounting hole grid, and tolerances).
+
+## [2026.5.29]
+
+### Added
+
+- Released the initial public version with the `WujiHand_Reorient` task, a
+  pretrained checkpoint, and the sim-to-real deployment bridge.
+
+[Unreleased]: https://github.com/wuji-technology/wuji-mjlab/compare/v2026.5.29...HEAD
+[2026.5.29]: https://github.com/wuji-technology/wuji-mjlab/releases/tag/v2026.5.29
