@@ -1,0 +1,67 @@
+name: "Docs: Notify Docs Center"
+
+env:
+  AUTOMATION_APP_ID: ${{ vars.AUTOMATION_APP_ID }}
+  AUTOMATION_APP_PRIVATE_KEY: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'docs/external/**'
+  push:
+    branches: [main]
+    paths:
+      - 'docs/external/**'
+
+jobs:
+  notify:
+    name: Send docs notification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check automation app config
+        id: automation-config
+        run: |
+          if [[ -n "${AUTOMATION_APP_ID}" && -n "${AUTOMATION_APP_PRIVATE_KEY}" ]]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping docs notification because automation app credentials are not configured."
+          fi
+
+      - name: Generate GitHub App Token
+        if: steps.automation-config.outputs.configured == 'true'
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ env.AUTOMATION_APP_ID }}
+          private-key: ${{ env.AUTOMATION_APP_PRIVATE_KEY }}
+          owner: wuji-technology
+          repositories: wuji-docs-center
+      - name: Notify docs preview
+        if: steps.automation-config.outputs.configured == 'true' && github.event_name == 'pull_request'
+        uses: peter-evans/repository-dispatch@v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          repository: wuji-technology/wuji-docs-center
+          event-type: docs-preview
+          client-payload: |
+            {
+              "repo": ${{ toJSON(github.event.repository.name) }},
+              "branch": ${{ toJSON(github.head_ref) }},
+              "pr_number": ${{ toJSON(github.event.pull_request.number) }},
+              "sha": ${{ toJSON(github.event.pull_request.head.sha) }}
+            }
+
+      - name: Notify docs publish
+        if: steps.automation-config.outputs.configured == 'true' && github.event_name == 'push'
+        uses: peter-evans/repository-dispatch@v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          repository: wuji-technology/wuji-docs-center
+          event-type: docs-updated
+          client-payload: |
+            {
+              "repo": ${{ toJSON(github.event.repository.name) }},
+              "sha": ${{ toJSON(github.sha) }}
+            }

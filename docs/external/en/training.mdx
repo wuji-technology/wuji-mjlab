@@ -1,0 +1,96 @@
+---
+title: Training and Evaluation
+description: Train the reorient PPO policy, replay checkpoints, evaluate success rate, and export a trained policy to ONNX for deployment.
+---
+
+Training goes through the top-level `pixi` tasks. Pass the task ID with `--task`.
+
+## Train
+
+```bash
+pixi run train --task WujiHand_Reorient --agent.upload-model False
+```
+
+`--agent.upload-model False` keeps checkpoints local only. Drop it and set `WANDB_API_KEY` to also push the final-iteration checkpoint to W&B as a model artifact. Either way, local `.pt` files land on every `save_interval` boundary.
+
+Checkpoints and W&B logs write to `logs/rsl_rl/<run_name>/`.
+
+### Task Configurations
+
+Two task IDs share the same MDP but trade GPU memory against policy quality.
+
+| Task ID | Envs × Iterations | GPU memory | Notes |
+|---|---|---|---|
+| `WujiHand_Reorient` | 8192 × 5000 | ~20 GB | Release config, reproduces the released checkpoint |
+| `WujiHand_Reorient_Light` | 4096 × 7500 | ~12 GB | Lower-VRAM variant, visibly weaker policy |
+
+<Callout type="info">
+  If `pixi run train` runs out of memory, switch to the lower-VRAM variant:
+
+  ```bash
+  pixi run train --task WujiHand_Reorient_Light
+  ```
+
+  `WujiHand_Reorient_Light` fits comfortably under ~12 GB but converges to a weaker policy, with occasional cube drops and finger-jam behavior on harder reorientations.
+</Callout>
+
+## Replay and Evaluate
+
+Replay a trained checkpoint in the interactive viewer, or run a success-rate eval over many trials:
+
+```bash
+# Interactive viewer with a trained checkpoint
+pixi run play --task WujiHand_Reorient --checkpoint-file <path-to-ckpt.pt>
+
+# Success-rate eval over N trials (consumes ONNX)
+pixi run python -m wuji_mjlab.tasks.reorient.scripts.eval_success_rate <path-to-policy.onnx>
+```
+
+For headless, machine-readable output suited to CI or sweeps:
+
+```bash
+pixi run python -m wuji_mjlab.tasks.reorient.scripts.eval_success_rate <onnx_path> \
+    --num-trials 100 --no-viewer --json-output result.json
+```
+
+### Programmatic Evaluation
+
+The eval core is importable, so you can drive batch evaluation from Python without the CLI:
+
+```python
+from pathlib import Path
+from wuji_mjlab.tasks.reorient.tooling.eval_core import EvalConfig, run_eval
+
+result = run_eval(EvalConfig(
+    onnx_path=Path("<path-to-policy.onnx>"),
+    num_trials=50,
+    no_viewer=True,
+))
+print(f"success_rate = {result.success_rate:.2%}")
+print(f"mean min ori error = {result.mean_min_ori_error_rad:.3f} rad")
+
+# Per-trial data for custom analysis
+for trial in result.trials:
+    if trial.status == "success":
+        print(f"trial {trial.trial_idx}: t_first_succ={trial.time_to_first_success_s:.2f}s")
+```
+
+## Export to ONNX
+
+Deployment consumes an ONNX policy plus a sidecar JSON that records the control-mode parameters (`action_scale`, `ema_alpha`, `ctrl_dt`) captured at export time:
+
+```bash
+pixi run python -m wuji_mjlab.tasks.reorient.scripts.export_onnx <path-to-ckpt.pt>
+```
+
+The sidecar keeps deploy inference identical to the sim policy that produced the ONNX. Continue to [Sim-to-real Deployment](../sim2real) to run it on the physical hand.
+
+## Development Utilities
+
+```bash
+# List all registered task IDs
+pixi run list-envs
+
+# View the task scene with a dummy policy
+pixi run python -m wuji_mjlab.tasks.reorient.scripts.view_task WujiHand_Reorient
+```

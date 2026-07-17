@@ -1,0 +1,278 @@
+---
+title: 硬件搭建
+description: 搭建 reorient 策略的 sim-to-real 装置——相机、MVS SDK、ArUco cube、手腕 AprilTag、手部治具与相机内参标定。
+---
+
+本指南介绍在真机 Wuji Hand 上运行训练好的 `WujiHand_Reorient` ONNX 策略所需的硬件侧配置。软件管线见 [Sim-to-real 部署](../sim2real)。
+
+完成后，你将拥有一个经标定的相机、一个 3D 打印的 ArUco cube、一个手腕 AprilTag 世界坐标系、一台装在治具上的 Wuji Hand，以及针对你的装置填好的 `camera.yaml` 与 `cube_tags.json`。
+
+<p align="center">
+  <img src="./images/deploy.gif" width="80%" alt="参考装置：相机俯拍 Wuji Hand 与治具，右侧 MuJoCo mirror viewer 同步" />
+</p>
+
+## 硬件清单
+
+<Callout type="info">
+  视觉硬件（相机、镜头、支架）是参考配置。功能层面的要求是：完成相机内参标定后，所选光学组合能在 reorient 工作区内可靠估计 cube 相对手腕 AprilTag 的位姿。任何达到该标准的传感器与镜头组合都可用。把 Hikrobot 部件视为"已知可用"的起点，而非硬性要求。
+</Callout>
+
+- **工业 USB 相机**：Hikrobot MV-CU013-A0UC（USB-3，1280×1024，1.3 MP，彩色 Bayer GB），与 [`camera.yaml`](https://github.com/wuji-technology/wuji-mjlab/blob/main/deploy/reorient/config/camera.yaml) 中的传感器和采集格式匹配。目前 observer 只接入了 Hikrobot 这一个传感器 SDK。UVC 摄像头和其他厂商的工业相机需要重写 cube observer，把 `MvImport` 替换为对应厂商的 Python 绑定。
+- **FA 镜头**：Hikrobot MVL-MF0824M-5MPE，8 mm 定焦，F2.4，2/3″ 像圈，C-mount，5 MP 适配。任何 2/3″ 像圈、8 mm 焦距、F2.4 或更大光圈的 C-mount 镜头均可等效替代。
+- **相机支架或三脚架**：任何刚性夹具，能把相机固定在距手掌约 350 mm 上方，且在标定与 rollout 之间不发生位移。垂直行程 ≥ 400 mm，具备振动阻尼，优先用固定高度夹具而非伺服机械臂。
+- **手腕 AprilTag 贴纸**：1 张 AprilTag36h11 ID 0，黑边边长 48 mm，外加 quiet zone 白色留白（尺寸约定见「手腕 AprilTag」）。打印在哑光 vinyl 或覆膜纸上以避免眩光，白底黑墨。安装前用卡尺校验黑边边长——任何缩放误差都会直接传播到位姿估计。打印流程见「手腕 AprilTag」。
+- **Wuji Hand 右手**：请直接联系 Wuji Technology。Wuji Hand SDK 要求与部署驱动匹配的固件版本。Host 端通过一根 USB 线直连。
+- **手部安装治具**：3D 打印的 PLA 底座，用螺丝固定在铝合金蜂窝板上。BOM 与装配见「物理装配」，CAD 随 release 附件提供。
+- **标定 cube**：3D 打印的 54 mm 棱长实心立方体，6 个面嵌入 24 块 ArUco 标签，与 `cube_tags.json` 匹配。打印细节见「Cube 制作」，CAD 随 release 附件提供。
+- **计算机**：Ubuntu 22.04 x86_64，NVIDIA sm_80+ GPU（Ampere 及以上），CUDA 12.8，至少 2 个空闲 USB 接口。
+
+<Callout type="info">
+  所有 Wuji 出品的部件（cube、治具）均在 Apache 2.0 协议下开源。只要 cube 棱长为 54 mm 且标签尺寸匹配 [`cube_tags.json`](https://github.com/wuji-technology/wuji-mjlab/blob/main/deploy/reorient/config/cube_tags.json)，商业替代品也可使用。
+</Callout>
+
+## 软件前置依赖
+
+### 操作系统和 GPU 驱动
+
+- Ubuntu 22.04 LTS，x86_64
+- 与 CUDA 12.8 配套的 NVIDIA 驱动（`nvidia-smi` 应能正常报告）
+- [pixi](https://pixi.sh) ≥ 0.66，已加入 `$PATH`
+
+### Hikvision MVS SDK
+
+相机标定与 cube observer 脚本会从系统级 SDK 安装路径导入 `MvImport.MvCameraControl_class`，本仓库未内置。
+
+**获取方式**：[hikrobotics.com](https://www.hikrobotics.com) → Service & Support → Downloads → MVS Client → Linux x86_64。
+
+**推荐版本**：Linux 版 MVS Client ≥ 4.6.0。较旧的 4.5.x 版本提供的 Python 绑定略有不同，可能导致导入失败。
+
+**安装方法**。具体包格式因平台和 MVS 版本而异，请始终以 SDK 压缩包内附带的 README 为准。常见情况：
+
+```bash
+# Ubuntu / Debian (the .deb is what hikrobotics.com offers today)
+sudo apt install ./MVS-*.deb
+
+# CentOS / RHEL
+sudo rpm -i MVS-*.rpm
+```
+
+上述方式默认都会把文件安装到 `/opt/MVS/` 下。安装完成后你应能看到 `/opt/MVS/lib/64/libMvCameraControl.so`（运行时库）、`/opt/MVS/Samples/64/Python/MvImport/`（Python 绑定）、`/opt/MVS/bin/MVS`（设备发现 GUI）。
+
+**系统调优**（要稳定支撑 `camera.yaml` 中配置的采集帧率，必须执行）：
+
+```bash
+# USB-3 cameras: install udev rules and raise USB scheduling priority
+sudo /opt/MVS/bin/set_usb_priority.sh
+```
+
+**Shell 环境变量**。MVS 安装包把 export 写入 `/etc/profile.d/MVS_*.sh`，而该文件只在登录 shell 启动时加载。大多数终端会话是非登录 shell，变量会静默缺失，导入 Python 绑定时抛出 `TypeError`。请把 export 追加到 shell rc 文件：
+
+```bash
+# bash
+echo 'export MVCAM_COMMON_RUNENV=/opt/MVS/lib' >> ~/.bashrc
+echo 'export LD_LIBRARY_PATH=/opt/MVS/lib/64:$LD_LIBRARY_PATH' >> ~/.bashrc
+source ~/.bashrc
+```
+
+| 变量 | 作用 |
+|---|---|
+| `MVCAM_COMMON_RUNENV` | Hikvision Python 绑定通过它定位 `libMvCameraControl.so` |
+| `LD_LIBRARY_PATH` | 动态链接器搜索路径，用于解析 MVS 共享库的传递依赖 |
+
+**验证安装**：
+
+```bash
+# Python binding import test
+python3 -c "import sys; sys.path.insert(0, '/opt/MVS/Samples/64/Python'); from MvImport.MvCameraControl_class import *; print('ok')"
+
+# Hardware detection — your camera should appear in the left panel
+/opt/MVS/bin/MVS
+```
+
+常见问题：
+
+- `ModuleNotFoundError: MvImport`——SDK 路径错误。重新安装到 `/opt/MVS/`，或设置 `MVS_PYTHON_PATH=/path/to/MVS/Samples/64/Python`。
+- 导入 `MvCameraControl_class` 时出现 `TypeError`——`MVCAM_COMMON_RUNENV` 未设置，见上面的 shell 环境步骤。
+- GUI 列表中没有相机——重新运行 `set_usb_priority.sh`，检查线缆，把用户加入 `plugdev` 和 `dialout` 组，用 `lsusb` 确认可见性。
+
+### Deploy 环境
+
+从仓库根目录安装 deploy 环境：
+
+```bash
+pixi install -e deploy
+```
+
+它拉取 OpenCV（ArUco 与 IPPE）、pupil-apriltags（手腕标签）、pyzmq（cube 与 goal pub-sub）、glfw（passive MuJoCo viewer）、Wuji Hand SDK 与 pyyaml。冒烟测试：
+
+```bash
+pixi run -e deploy python -c "import cv2, pupil_apriltags, zmq, wujihandpy; print(cv2.__version__)"
+```
+
+## Cube 制作
+
+最快路径是用 release 附件里的资产复现参考 cube。下载 release zip（`gh` 命令见[简介](../introduction)），会产生一个 `release-assets/` 目录，其中 `hardware/cube/` 含 `.3mf`、`.step`、`.obj` 与 `.png` 文件。Cube 是棱长 54 mm 的实心立方体，每面 4 × 13 mm ArUco 标签（共 24 个，ID 0–23）。真实性能依赖尺寸与 `cube_tags.json` 的偏差控制在约 0.5 mm 内。
+
+打印前若要 3D 检视 24 个标签的布局：
+
+```bash
+pixi run python deploy/reorient/tools/view_release_cube.py
+```
+
+### 3D 打印 cube
+
+使用随包发布的 Bambu Lab `.3mf`（`release-assets/hardware/cube/cube.3mf`）。它包含 cube 几何以及双材料分配，能直接把 24 个 ArUco 标签图案打印到各面上，无需贴纸、胶水或对齐操作。
+
+1. 在 Bambu Studio 中打开该文件，或拖到已连接的 Bambu 打印机上。
+2. 装载两种耗材，一黑一白（PLA 即可）。切片软件会提示分配槽位，`.3mf` 已声明哪个逻辑槽是 tag、哪个是 base，请确认实际耗材对应正确。
+3. 切片并打印。默认设置（约 0.2 mm 层高，约 30% 填充）即可。
+
+预期几何（与 `cube_tags.json` 匹配，请勿缩放）：cube 棱长 54 mm，标签贴片 13 mm，标签中心沿每个面的本地 u/v 轴各偏移 18 mm。
+
+<Callout type="warning">
+  多材料打印比单材料更容易失败。在调校 AMS 冲料量和换色清料的过程中，前几次打印很可能要作为废件。
+</Callout>
+
+**单材料 fallback**。没有双材料打印机时，可基于 `cube.step` 加贴纸得到等效 cube：
+
+1. 用任意单一材料从 `cube.step` 打印 cube 主体。打印后用卡尺核对 54 mm 边长。
+2. 把 `cube.png` 按 UV 展开尺寸印在哑光 vinyl 或覆膜纸上。沿面边界裁剪得到 6 张 54 × 54 mm 贴纸。
+3. 把每张贴纸贴到对应面上。标签 ID 编码所属面，贴纸时按 `cube_tags.json` 映射放置。
+4. 若贴纸没法刚好落在距面中心 18 mm 处，在 `cube_tags.json` 中重新标定 `tag_center_offset`。
+
+在 ArUco 检测层面，贴纸 cube 与双材料 cube 功能等价，但更容易掉皮和对齐偏差。条件允许时优先选用 `.3mf`。
+
+<Callout type="info">
+  `cube.png` 与 `cube.3mf` 中 6 面的彩色底色纯粹是为了肉眼区分各面。检测器只读黑白标签 pattern，observer 会施加灰度变换，把任何彩色背景压到接近 0。走贴纸路线时，纯白底色即可，只要标签 pattern 保持白底黑字的高对比度。
+</Callout>
+
+### 标签规格
+
+来自 `cube_tags.json`（仅用于视觉定位，只有打印的 cube 几何不同才需要改）：ArUco 4×4 字典（`DICT_4X4_50`），`tag_size` 13 mm，`tag_center_offset` 距面中心 18 mm。每个面的标签 ID（T/R/B/L 为该面内的 top、right、bottom、left 槽位）：
+
+| 面 | T | R | B | L |
+|---|---|---|---|---|
+| TOP | 0 | 2 | 3 | 1 |
+| BOTTOM | 11 | 9 | 8 | 10 |
+| FRONT | 22 | 23 | 21 | 20 |
+| BACK | 18 | 19 | 17 | 16 |
+| LEFT | 14 | 15 | 13 | 12 |
+| RIGHT | 5 | 4 | 6 | 7 |
+
+## 手腕 AprilTag
+
+Cube observer 通过一个刚性安装在手腕板上的 AprilTag36h11 标签定义世界（手腕）坐标系。强制规格：family AprilTag36h11，ID 0，棱长 48 mm。请精确打印为外尺寸 48 mm × 48 mm——AprilTag 库以此为度量单位，打印缩放误差会传播到位姿估计。
+
+标签平面位于手腕背面，与手掌法线垂直。以与参考装置相同的朝向放置标签，如下图所示。
+
+![手腕标签安装位置——AprilTag 位于组装治具顶部](./images/hand-jig-side.jpg)
+
+<Callout type="warning">
+  完成世界坐标系采样后请勿移动手腕标签。Observer 在启动时对 100 帧做平均，然后冻结世界位姿。之后任何位移都会使策略读取的 cube-in-tag 观测失真。
+</Callout>
+
+### 购买或自行打印
+
+发布版硬件包不附带预裁的手腕贴纸。优先推荐自行打印，因为成品贴纸供应商极少提供单一 ID、自定义尺寸的选项，而本任务只需要 ID 0 且必须严格为 48 mm。
+
+**尺寸约定**。AprilTag36h11 是 10 × 10 cell 栅格。48 mm 指黑色边框的外缘，也就是 detector 识别的 `tag_size`。白色安静区（≥ 1 cell ≈ 4.8 mm）位于 48 mm 之外。一张正确打印的贴纸总体约 58 mm × 58 mm。
+
+**DIY 打印工作流**：
+
+1. **获取标签图像**，来自 [`AprilRobotics/apriltag-imgs`](https://github.com/AprilRobotics/apriltag-imgs)。family 36h11 的 ID 0 对应 `tag36h11/tag36_11_00000.png`。该仓库自带的 `tag_to_svg.py` 可生成任意尺寸的矢量版本：
+
+   ```bash
+   git clone https://github.com/AprilRobotics/apriltag-imgs
+   cd apriltag-imgs
+   python3 tag_to_svg.py tag36h11/tag36_11_00000.png tag36_11_00000.svg --size=48mm
+   ```
+
+2. **用最近邻插值放大，禁止反走样**（若走 PNG 路径）。把原图放大到目标尺寸时必须用最近邻插值——反走样会把边缘平滑成灰阶过渡，破坏 detector 的角点梯度。
+3. **预留安静区**。把 48 mm 图案放在白色版面正中，四周各留 ≥ 5 mm 纯白边距。
+4. **打印**，≥ 600 dpi，哑光 vinyl 或哑光覆膜纸，白底黑色墨水。避免高光面材质。
+5. **卡尺校核**。测量黑色方块的外缘，确认两个方向都落在 48.0 ± 0.3 mm 内。
+6. **粘贴**到手腕板上，朝向如上图。重新运行 vision 前再次确认上面的警告。
+
+## 物理装配
+
+### 手部安装
+
+Wuji Hand 装在一个 3D 打印治具上，治具用螺丝固定在铝合金蜂窝板上。治具让手腕 AprilTag 暴露给相机，并在手掌上方留出约 20 cm 空隙容纳 cube。把 Hand 的 USB 线从手腕后方走线，避开相机视野。
+
+![灵巧手在治具上的侧视图](./images/hand-jig-side.jpg)
+
+release 附件的 `hardware/hand-jig/` 目录提供 `assembly.pdf`（带标注的装配图）、`assembly.step`（完整实体）与 `base.3mf`（可打印底座）。如果从零复现，以下是图纸上的关键数据：
+
+| 尺寸项 | 数值 |
+|---|---|
+| 装配整体高度（底座 + 蜂窝板） | 146.7 mm |
+| 静止时灵巧手后倾角 | 10.0° |
+| 蜂窝板 | 350 × 200 × 13 mm，AL6061-T6，阳极黑色 |
+| 蜂窝板孔阵 | 91 × M6 螺纹通孔，25 mm 间距，13 × 7 阵列 |
+| 3D 打印底座外形 | 约 90（宽）× 93（深）× 134（高）mm |
+| 底座 → 蜂窝板固定 | 4 × M6 内六角螺丝穿 φ6.60 过孔，φ11.0 沉头 |
+
+**装配步骤**：
+
+1. 在支持 PLA 的 FDM 打印机上打印 `base.3mf`，文件内已捆绑 Bambu Lab 切片配置。
+2. 把底座放在蜂窝板上，使手腕安装托架朝前。底座的通孔与沉头孔与 M6 螺纹阵列对齐。
+3. 用 4 颗 M6 内六角螺丝把底座拧紧到蜂窝板上。
+4. 装配完成后整体高度约 147 mm，并把 Wuji Hand 后倾 10°，使静止时手腕标签朝向相机。
+5. 把 Wuji Hand 卡入托架，USB 线从手腕后方走线，避开相机视野。
+
+<Callout type="info">
+  功能上只有 10° 后倾角和沉头孔阵对相机取景与螺丝平齐压紧是关键，其余仅为复现便利。
+</Callout>
+
+### 相机安装
+
+把相机安装到这样一个位置：整个 reorient 过程中，cube 可达工作区和手腕 AprilTag 都完整出现在预览里。实际大致是手掌上方 30–40 cm，但具体距离不严格——策略把 cube 保持在距手掌中心约 10 cm 内，工作区盒子很小，中途不会脱离画面。
+
+请勿手动编辑 `camera.yaml` 中的 `fast_roi`，vision 程序已内置交互式选择器。相机安装好后：
+
+```bash
+pixi run -e deploy vision
+```
+
+在预览窗口按 **`s`** 打开 ROI 对话框，在 cube 的可达工作空间上拖出一个矩形，按 ENTER 或 SPACE 确认。Observer 会把 ROI 对齐到 8 的倍数，原子地写入 `camera.yaml`，并实时应用、无需重启采集。
+
+Vision 窗口的其他快捷键：
+
+| 按键 | 作用 |
+|---|---|
+| `s` | 打开 ROI 选择器 |
+| `w` | 重新采样世界坐标系（重新检测手腕 AprilTag，重置 cube filter） |
+| `r` | 仅重置 cube filter |
+| `q` | 退出 |
+
+### 光照
+
+使用漫射环境光。避免逆光——observer 使用取最小通道的灰度图，标签边缘过曝是检测漏失的最大原因。保持 CLAHE 开启（[`observer.yaml`](https://github.com/wuji-technology/wuji-mjlab/blob/main/deploy/reorient/config/observer.yaml)）。若 CLAHE 下 cube 面看起来噪点多，关闭它并仅依靠 min-channel。
+
+## 相机内参标定
+
+`camera.yaml` 中的焦距、主点与畸变系数描述参考装置。换用其他相机时必须在信任 cube 位姿之前重新标定——5% 的焦距误差会线性传播到 cube 位置。
+
+### 打印棋盘格
+
+打印 11 × 8 内部角点（12 × 9 格）、20 mm 方格的棋盘，与标定器的 `SQUARE_SIZE` 常量匹配。固定在刚性平整底板上——弯曲会引入系统性径向偏差。
+
+### 运行引导式标定器
+
+```bash
+pixi run -e deploy python deploy/reorient/tools/camera_calibrate.py
+```
+
+工具引导走完 14 个采集任务（中心、左、右、上、下区域，近、中、远距离，正视、倾斜姿态），当区域、尺寸、倾角进入范围时自动采集。
+
+按键：`c` 强制采集，`n` 跳过，`s` 拟合（需 ≥ 12 张采集），`q` 退出。`s` 之后工具打印 RMS 重投影误差并写入 `camera_calibration.npz`。目标 RMS < 0.5 px，超过 1.0 px 表示棋盘移动或对焦失误。
+
+### 填写 camera.yaml
+
+标定器只写入 `camera_calibration.npz`，不会就地更新 `camera.yaml`。手动把打印出的 `K` 和 `dist` 数值复制到 `intrinsics` 和 `distortion` 块中。与随包文件做 diff，确认 9 个数值都已填入。
+
+### 合理性校验
+
+运行 `pixi run -e deploy vision`（预览模式）。手腕标签静止时，其位姿应稳定到亚像素级抖动。频繁的 PnP 拒绝意味着内参拟合不足——回到「运行引导式标定器」多采集倾斜样本。
+
+装置标定好后，继续到 [Sim-to-real 部署](../sim2real) 做位姿调优、闭环运行与端到端冒烟测试。

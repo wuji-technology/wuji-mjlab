@@ -1,0 +1,328 @@
+name: Post-Merge Docs Follow-up
+
+# Self-hosted variant — all logic lives in this repo, no dependency on
+# wuji-docs-center reusable workflow or App token. Adopted because
+# wuji-mjlab is a public repo and GitHub forbids public callers from invoking
+# private repos' reusable workflows. Tradeoff: this file and the scripts
+# under .github/scripts/docs-followup/ must be kept in sync with the central
+# version by hand.
+#
+# After a PR is merged into main, this workflow checks whether the change
+# touches the public surface (defined in .github/docs-sync-public-packages.txt)
+# and the PR title is not a pure-internal prefix. If both pass, it tags the
+# merged PR with `docs:followup` and DMs the maintainer a Feishu card with
+# the ready-to-use Claude prompt. The maintainer runs Claude locally, then
+# comments /docs-done | /docs-skip on the PR (callback workflow clears the
+# label). This workflow never calls an AI API or edits docs itself.
+#
+# Requirements (repo-level):
+#   - secrets.FEISHU_DOCS_DM_WEBHOOK
+#   - secrets.FEISHU_DOCS_DM_SIGN_SECRET
+#   - vars.DOCS_MAINTAINER (the GitHub login authorized to follow up)
+#
+# Per-repo:
+#   - .github/docs-sync-public-packages.txt
+#   - .github/scripts/docs-followup/*.sh
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  filter:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      should_run: ${{ steps.judge.outputs.should_run }}
+      reason: ${{ steps.judge.outputs.reason }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - id: judge
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
+          DOCS_MAINTAINER: ${{ vars.DOCS_MAINTAINER }}
+        run: |
+          set -euo pipefail
+
+          # 文档维护者名单内作者提的 PR：静默跳过，不发任何卡片。名单里的人本身就是
+          # 收卡片的人，自己提的东西不需要再收一份通知。`silent:` 前缀让 notify-skip
+          # 连「不需要文档跟进」的灰卡也不发（见 notify-skip 的 if 守卫），否则维护者
+          # 每提一个 docs: 前缀的 PR 都会被自己的机器人打扰一次。
+          #
+          # 名单 = vars.DOCS_MAINTAINER（org 变量，同时是 /docs-done 的授权人）
+          #      + DOCS_SKIP_AUTHORS（下面这行维护的附加名单，逗号分隔）
+          # 判「作者」而不是「合入人」：两者常常不同（bot 提、维护者合），按合入人
+          # 判会把同事的功能 PR 一起静默掉，真通知就丢了。
+          DOCS_SKIP_AUTHORS="yuanyuanxin,xialiC"
+          SKIP_LIST=",${DOCS_MAINTAINER},${DOCS_SKIP_AUTHORS},"
+          if [[ -n "$PR_AUTHOR" && "$SKIP_LIST" == *",${PR_AUTHOR},"* ]]; then
+            echo "skip: author=$PR_AUTHOR is on the docs skip list, silently skipping" >&2
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "reason=silent:author-on-docs-skiplist" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Bot-authored PRs: gray card with "版本发布通知". GitHub Apps
+          # (release automation, dependabot, renovate) carry user.type == 'Bot'
+          # and never produce user-facing API changes.
+          if [[ "$PR_AUTHOR_TYPE" == "Bot" ]]; then
+            echo "skip: author=$PR_AUTHOR is a Bot, sending gray card" >&2
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "reason=author-is-bot" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          CALLER_REPO_ROOT="$PWD" \
+            bash .github/scripts/docs-followup/public-packages-discover.sh \
+            > /tmp/public-paths.txt
+          if [[ ! -s /tmp/public-paths.txt ]]; then
+            echo "public-paths file is empty — refusing to run filter" >&2
+            exit 1
+          fi
+
+          git diff --name-only "$BASE_SHA" "$MERGE_SHA" > /tmp/changed.txt
+
+          # Build an anchored alternation regex from public-paths.txt so that
+          # entries like "crates/sdk/" do not accidentally match
+          # "internal/crates/sdk/...". Trim trailing whitespace and drop empty
+          # lines first.
+          PATTERN="$(sed 's/[[:space:]]*$//; /^$/d; s/[][\\.^$*+?(){}|]/\\&/g; s|^|^|' /tmp/public-paths.txt | paste -sd'|' -)"
+
+          if [[ -z "$PATTERN" ]]; then
+            echo "public-paths file has no non-comment, non-blank entries — refusing to run filter" >&2
+            exit 1
+          fi
+
+          set +e
+          INTERSECT="$(grep -E "$PATTERN" /tmp/changed.txt)"
+          rc=$?
+          set -e
+          if [[ $rc -gt 1 ]]; then
+            echo "grep failed with rc=$rc" >&2
+            exit $rc
+          fi
+
+          if [[ -z "$INTERSECT" ]]; then
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "reason=no public path touched" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Force-followup paths bypass the title-prefix skip below. Listed in
+          # `.github/docs-sync-force-followup.txt` (optional). Use for high-
+          # signal surfaces where prior `docs:` / `refactor:` PRs changed the
+          # user-visible API (docstrings, removed bindings).
+          CALLER_REPO_ROOT="$PWD" \
+            bash .github/scripts/docs-followup/force-followup-discover.sh \
+            > /tmp/force-paths.txt || true
+          FORCE_INTERSECT=""
+          if [[ -s /tmp/force-paths.txt ]]; then
+            FORCE_PATTERN="$(sed 's/[[:space:]]*$//; /^$/d; s/[][\\.^$*+?(){}|]/\\&/g; s|^|^|' /tmp/force-paths.txt | paste -sd'|' -)"
+            if [[ -n "$FORCE_PATTERN" ]]; then
+              set +e
+              FORCE_INTERSECT="$(grep -E "$FORCE_PATTERN" /tmp/changed.txt)"
+              rc=$?
+              set -e
+              if [[ $rc -gt 1 ]]; then
+                echo "grep failed (force list) with rc=$rc" >&2
+                exit $rc
+              fi
+            fi
+          fi
+
+          if [[ -n "$FORCE_INTERSECT" ]]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "reason=force-followup path touched (bypassed title-prefix rule)" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Author-declared-internal skip: PR description explicitly says the
+          # change is internal / not exposed / Rust-only / factory-only.
+          INTERNAL_BODY_PATTERN='内部实验|内部任务|内部配方|不对外|internal[- ]only|internal experiment|not user[- ]facing|未注册任务|unregistered task'
+          # here-string `<<<` 比 `echo "$PR_BODY" |` 更安全：echo 在某些 bash
+          # 版本/shell 实现里会解释 backslash escapes，导致正则误判。
+          if grep -qiE "$INTERNAL_BODY_PATTERN" <<< "$PR_BODY"; then
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "reason=author-declared-internal" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Title-prefix skip: accepts both bare `chore:` and compound
+          # `ci/docs(scope):` — only if BOTH halves are internal types.
+          if [[ "$PR_TITLE" =~ ^(chore|test|refactor|perf|docs|style|ci)(/(chore|test|refactor|perf|docs|style|ci))?(\(.*\))?: ]]; then
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "reason=internal-change prefix in PR title" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Internal-scope skip: title like `feat(ci):` / `fix(test):` —
+          # type is feat/fix but scope is a non-functional area.
+          if [[ "$PR_TITLE" =~ ^(feat|fix)\((ci|test|docs|style)\): ]]; then
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "reason=internal-scope in PR title" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "should_run=true" >> "$GITHUB_OUTPUT"
+          echo "reason=public path touched" >> "$GITHUB_OUTPUT"
+
+  notify-skip:
+    needs: filter
+    if: needs.filter.outputs.should_run == 'false' && !startsWith(needs.filter.outputs.reason, 'silent:')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Feishu DM (no docs follow-up needed)
+        env:
+          FEISHU_DOCS_DM_WEBHOOK: ${{ secrets.FEISHU_DOCS_DM_WEBHOOK }}
+          FEISHU_DOCS_DM_SIGN_SECRET: ${{ secrets.FEISHU_DOCS_DM_SIGN_SECRET }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          REASON: ${{ needs.filter.outputs.reason }}
+        run: |
+          # Map filter-step reason codes to Chinese display strings for the
+          # card's "结论" row.
+          case "$REASON" in
+            "no public path touched")
+              DETAIL="未触及公开面路径（见 .github/docs-sync-public-packages.txt）" ;;
+            "internal-change prefix in PR title")
+              DETAIL="标题以内部 type 前缀开头（chore/test/refactor/perf/docs/style/ci）" ;;
+            "internal-scope in PR title")
+              DETAIL="标题 scope 是非功能领域（ci/test/docs/style）" ;;
+            "author-declared-internal")
+              DETAIL="作者在 PR 描述里明示对内/不暴露/Rust-only" ;;
+            "author-is-bot")
+              DETAIL="版本发布通知" ;;
+            *)
+              DETAIL="$REASON" ;;
+          esac
+
+          bash .github/scripts/docs-followup/feishu-dm.sh \
+            --pr "$PR_NUMBER" \
+            --status internal_change \
+            --pr-title "$PR_TITLE" \
+            --pr-author "$PR_AUTHOR" \
+            --detail "$DETAIL"
+
+  prepare:
+    needs: filter
+    if: needs.filter.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Tag PR and post the docs follow-up comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: bash .github/scripts/docs-followup/docs-followup-comment.sh
+
+      # Feishu outage must not fail the job — that would trigger a misleading
+      # "process failed" fallback even though the PR comment was posted fine.
+      - name: Feishu DM (docs follow-up needed)
+        continue-on-error: true
+        env:
+          FEISHU_DOCS_DM_WEBHOOK: ${{ secrets.FEISHU_DOCS_DM_WEBHOOK }}
+          FEISHU_DOCS_DM_SIGN_SECRET: ${{ secrets.FEISHU_DOCS_DM_SIGN_SECRET }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          if ! PROMPT="$(bash .github/scripts/docs-followup/docs-followup-prompt.sh)"; then
+            echo "::warning title=Prompt render failed::docs-followup-prompt.sh exited non-zero; followup_needed card will ship without the prompt code block"
+            PROMPT=""
+          fi
+          bash .github/scripts/docs-followup/feishu-dm.sh \
+            --pr "$PR_NUMBER" \
+            --status followup_needed \
+            --pr-title "$PR_TITLE" \
+            --pr-author "$PR_AUTHOR" \
+            --prompt "$PROMPT" \
+          || echo "::error title=Feishu DM failed::followup_needed card not delivered for PR #$PR_NUMBER — maintainer can re-render the prompt locally"
+
+  failure-fallback:
+    needs: [filter, prepare]
+    if: |
+      always()
+      && github.event.pull_request.merged == true
+      && (needs.filter.result == 'failure'
+        || needs.prepare.result == 'failure'
+        || needs.filter.result == 'cancelled'
+        || needs.prepare.result == 'cancelled')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Post fallback PR comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          cat > /tmp/comment <<EOF
+          ⚠️ post-merge-docs-followup 自动文档跟进流程失败或被取消。
+
+          请手动评估本次合并是否需要更新对外文档。
+
+          [查看本次 workflow 运行]($RUN_URL)
+          EOF
+          gh pr comment "$PR_NUMBER" -R "$REPO" --body-file /tmp/comment || \
+            echo "PR comment fallback also failed" >&2
+
+      - name: Feishu DM (failure)
+        if: always()
+        continue-on-error: true
+        env:
+          FEISHU_DOCS_DM_WEBHOOK: ${{ secrets.FEISHU_DOCS_DM_WEBHOOK }}
+          FEISHU_DOCS_DM_SIGN_SECRET: ${{ secrets.FEISHU_DOCS_DM_SIGN_SECRET }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          bash .github/scripts/docs-followup/feishu-dm.sh \
+            --pr "$PR_NUMBER" \
+            --status failed \
+            --pr-title "$PR_TITLE" \
+            --pr-author "$PR_AUTHOR" \
+            --run-url "$RUN_URL"

@@ -1,0 +1,92 @@
+# Docs freshness sync: merges main's docs/external/ changes into docs-prerelease.
+name: Sync default branch into docs-prerelease
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/external/**"
+
+concurrency:
+  group: docs-prerelease-sync
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Merge into docs-prerelease
+        id: merge
+        run: |
+          set -euo pipefail
+          if ! git ls-remote --exit-code --heads origin docs-prerelease >/dev/null; then
+            echo "docs-prerelease branch not found, skipping"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # checkout 的 fetch refspec 不保证包含 docs-prerelease，显式取回为本地分支
+          git fetch origin docs-prerelease:docs-prerelease
+          git checkout docs-prerelease
+          if git merge -m "chore: merge ${GITHUB_REF_NAME} into docs-prerelease" "${GITHUB_SHA}"; then
+            git push origin docs-prerelease
+            echo "Merged ${GITHUB_REF_NAME} (${GITHUB_SHA}) into docs-prerelease"
+          else
+            echo "conflict=true" >> "$GITHUB_OUTPUT"
+            git merge --abort
+            exit 1
+          fi
+
+      - name: Open conflict issue
+        if: failure() && steps.merge.outputs.conflict == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'docs-prerelease 合并冲突：需要人工处理';
+            const label = 'docs-prerelease-conflict';
+            // 创建 issue 不会自动生成缺失的 label，先幂等创建，保证打标和按标去重生效
+            try {
+              await github.rest.issues.createLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: label,
+                color: 'd93f0b',
+                description: 'docs-prerelease 自动合并冲突，待人工处理',
+              });
+            } catch (e) {
+              if (e.status !== 422) throw e;
+            }
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: label,
+            });
+            if (issues.some(i => i.title === title)) {
+              console.log('Conflict issue already open, skipping');
+              return;
+            }
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              labels: [label],
+              body: [
+                `自动 merge \`${context.payload.ref.replace('refs/heads/', '')}\` → \`docs-prerelease\` 时发生冲突。`,
+                '',
+                `触发 commit：${context.sha}`,
+                `Workflow run：${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+                '',
+                '请本地手动 merge 解决冲突后 push docs-prerelease，然后关闭本 issue。',
+              ].join('\n'),
+            });

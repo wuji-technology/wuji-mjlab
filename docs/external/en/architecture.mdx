@@ -1,0 +1,65 @@
+---
+title: Architecture
+description: The three-layer stack behind wuji-mjlab, the reorient task and MDP design, contact-parameter domain randomization, and how to add a new task.
+---
+
+wuji-mjlab is a three-layer stack. This repo holds the tasks and the deploy bridge, mjlab provides the manager-based RL framework, and MuJoCo with mujoco-warp provides GPU-batched physics. PPO runs through a vendored [rsl-rl](https://github.com/leggedrobotics/rsl_rl) backend under `src/wuji_rl_libs/rsl_rl/`.
+
+```text
++--------------------------------------------------------+
+| wuji-mjlab (this repo)                                 |
+|  +----------------------+  +-------------------------+ |
+|  | tasks/reorient/      |  | deploy/reorient/        | |
+|  |   - env cfg + MDP    |  |   - real-hand env       | |
+|  |   - 2-group DR       |  |   - vision pipeline     | |
+|  |   - eval + export    |  |   - closed-loop control | |
+|  +----------------------+  +-------------------------+ |
+|  src/wuji_rl_libs/rsl_rl/ <- vendored PPO backend      |
++--------------------------------------------------------+
+              |                            |
+              v                            v
++-----------------------+  +---------------------------+
+| mjlab (pip / pixi)    |  | torch + onnxruntime       |
+| + mujoco-warp         |  | (training + inference)    |
+| + mujoco              |  |                           |
++-----------------------+  +---------------------------+
+```
+
+## The Reorient Task
+
+The reorient task is full SO(3) in-hand reorientation of a cube held by a downward-facing dexterous hand. The policy receives a target orientation in the palm's tag frame and rotates the cube in place until its orientation matches the goal within a hold window, without dropping it.
+
+The task design — MDP terms, reward shaping, and domain randomization — lives in the task package, separate from the robot binding. This split keeps the task reusable and the Wuji Hand binding thin.
+
+| Module | Role |
+|---|---|
+| `reorient_env_cfg.py` | Thin assembler that exposes `make_reorient_env_cfg()` |
+| `reorient_terms.py` | Event, termination, reward, and DR builders — the task design lives here |
+| `reorient_constants.py` | Task-wide public constants (initial pose, tag-in-palm transform) |
+| `config/wuji_hand/` | Robot binding that wires the task design onto the 20-DoF Wuji Hand |
+| `mdp/` | Observations, commands, and actions specific to reorientation |
+| `tooling/` | Importable, side-effect-free eval and ONNX-export core |
+
+The `mdp/` package holds the runtime task terms consumed by the mjlab manager system, including the SO(3) goal state machine (`commands.py`), the palm-relative cage geometry and reward escalation (`cage.py`), and the standard term modules for actions, observations, rewards, terminations, and curricula.
+
+## Domain Randomization
+
+The contact-parameter domain randomization splits the hand into two anatomical groups: the palm and thumb compliance zone versus fingers 2 through 5. Randomizing these groups separately, rather than uniformly, is what lets the sim-trained policy transfer to the physical hand's uneven contact behavior. The full randomization spec sits in `reorient_terms.py`.
+
+## Deploy Reuse
+
+The deploy bridge reuses the sim env verbatim. `RealHandEnv` subclasses mjlab's `ManagerBasedRlEnv`, so the same observation and action managers apply on real hardware — no parallel pipelines to drift out of sync. See [Sim-to-real Deployment](../sim2real) for the runtime pipeline.
+
+## Architecture Invariants
+
+- The event implementation split under `mdp/event_impl/` is internal. Outside callers consume events only through the `mdp.events` facade.
+- `ReorientEventState` is the single owner of every event-side runtime cache. Access it through `get_reorient_event_state(env)` rather than stashing fields on `env` directly.
+- `tooling/` is the importable core of script logic. `scripts/` own only argparse, env-var setup, and the `__main__` glue, so anything in `tooling/` can be called from Python for sweeps, tests, or notebooks.
+- The public API surface (`make_reorient_env_cfg`, `wuji_hand_reorient_env_cfg`, the `mdp` re-exports, registered task IDs, and the eval core) stays stable. Internal modules may move, but names external callers consume don't.
+
+## Add a New Task
+
+1. Create `src/wuji_mjlab/tasks/<your_task>/` with an env-cfg factory.
+2. Put all MDP design (events, rewards, terminations) in `<your_task>_terms.py`. Keep the `config/<robot>/` layer a thin binding.
+3. Register the task with `register_mjlab_task()` in `config/<robot>/__init__.py`.
+4. Run a quick `pixi run train --task <your_task_id>` smoke test before committing. The canonical training entrypoint is `scripts/train/train_rsl_rl.py`, exposed through the `train` pixi task.

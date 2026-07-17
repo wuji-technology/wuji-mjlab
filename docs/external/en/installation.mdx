@@ -1,0 +1,73 @@
+---
+title: Installation
+description: Set up the pixi environment for wuji-mjlab training and evaluation, plus the optional deploy environment for the sim-to-real bridge.
+---
+
+wuji-mjlab installs through [pixi](https://pixi.sh), which resolves the full CUDA and PyTorch stack from a lockfile.
+
+<Callout type="warning">
+  This project is pixi-only. `conda + pip install -e .` is not tested and not supported.
+</Callout>
+
+## Requirements
+
+- Linux x86_64
+- NVIDIA GPU with CUDA 12.8 (Blackwell sm_120 / RTX 50-series supported)
+- [pixi](https://pixi.sh) ≥ 0.66 (the version CI uses)
+
+For sim-to-real deployment, you also need Wuji Hand hardware and a camera rig. See [Hardware Setup](../hardware) for the full bill of materials.
+
+## Install
+
+```bash
+# 1. install pixi (one-time)
+curl -fsSL https://pixi.sh/install.sh | bash
+
+# 2. clone and resolve the environment
+git clone https://github.com/wuji-technology/wuji-mjlab
+cd wuji-mjlab
+pixi install
+```
+
+This produces a `default` environment for training and evaluation. For the sim-to-real bridge, add the optional `deploy` environment:
+
+```bash
+pixi install -e deploy
+```
+
+## Verify
+
+```bash
+pixi run list-envs
+```
+
+This lists the registered tasks and confirms the mjlab and tyro stack imports cleanly.
+
+## Slow Dependency Downloads
+
+If `pixi install` stalls while pulling the PyTorch wheel, add mirror entries to the existing `[pypi-options]` block in `pixi.toml`. Keep `index-strategy` and the `[pypi-options.dependency-overrides]` block, and point the indexes at a mirror:
+
+```toml
+[pypi-options]
+index-strategy = "unsafe-best-match"
+index-url = "https://mirrors.aliyun.com/pypi/simple/"
+extra-index-urls = ["https://mirrors.aliyun.com/pytorch-wheels/cu128"]
+```
+
+<Callout type="warning">
+  This is a local edit. Don't commit it — the CI lockfile check fails if `pixi.toml` and `pixi.lock` drift.
+</Callout>
+
+## Development Setup
+
+To contribute, install the pre-commit hooks after cloning:
+
+```bash
+pixi run pre-commit install
+```
+
+Every `git commit` then runs ruff, codespell, and the YAML, TOML, and large-file checks locally, before CI sees the change. Run the full tree manually with `pixi run pre-commit run --all-files`.
+
+<Callout type="warning">
+  Don't `pip install` packages into the pixi environment. Pip dependencies aren't tracked by `pixi.toml` or `pixi.lock` and disappear on the next resolve. Add dependencies by editing `pixi.toml`, then run `pixi install`.
+</Callout>

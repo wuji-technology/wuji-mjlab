@@ -1,0 +1,73 @@
+---
+title: 安装
+description: 搭建 wuji-mjlab 训练与评测用的 pixi 环境，以及 sim-to-real 桥所需的可选 deploy 环境。
+---
+
+wuji-mjlab 通过 [pixi](https://pixi.sh) 安装，由 lockfile 解析完整的 CUDA 与 PyTorch 栈。
+
+<Callout type="warning">
+  本项目仅支持 pixi。`conda + pip install -e .` 未经测试且不受支持。
+</Callout>
+
+## 环境要求
+
+- Linux x86_64
+- NVIDIA GPU，CUDA 12.8（支持 Blackwell sm_120 / RTX 50 系列）
+- [pixi](https://pixi.sh) ≥ 0.66（CI 用的版本）
+
+用于 sim-to-real 部署时，还需要 Wuji Hand 硬件与相机装置，完整硬件清单见[硬件搭建](../hardware)。
+
+## 安装
+
+```bash
+# 1. install pixi (one-time)
+curl -fsSL https://pixi.sh/install.sh | bash
+
+# 2. clone and resolve the environment
+git clone https://github.com/wuji-technology/wuji-mjlab
+cd wuji-mjlab
+pixi install
+```
+
+这一步生成训练与评测用的 `default` 环境。如需 sim-to-real 桥，再安装可选的 `deploy` 环境：
+
+```bash
+pixi install -e deploy
+```
+
+## 验证
+
+```bash
+pixi run list-envs
+```
+
+它列出已注册的任务，并确认 mjlab 与 tyro 栈可正常 import。
+
+## 依赖下载缓慢
+
+如果 `pixi install` 拉取 PyTorch wheel 时卡住，在 `pixi.toml` 现有的 `[pypi-options]` 段上增改镜像键。保留 `index-strategy` 与 `[pypi-options.dependency-overrides]` 段，把索引指向镜像源：
+
+```toml
+[pypi-options]
+index-strategy = "unsafe-best-match"
+index-url = "https://mirrors.aliyun.com/pypi/simple/"
+extra-index-urls = ["https://mirrors.aliyun.com/pytorch-wheels/cu128"]
+```
+
+<Callout type="warning">
+  这是本地修改，不要 commit——`pixi.toml` 与 `pixi.lock` 一旦不一致，CI 的 lockfile 校验会失败。
+</Callout>
+
+## 开发环境
+
+参与开发时，克隆后安装 pre-commit hooks：
+
+```bash
+pixi run pre-commit install
+```
+
+之后每次 `git commit` 都会在本地跑 ruff、codespell，以及 YAML、TOML 与大文件检查，在 CI 之前拦截问题。手动全量跑用 `pixi run pre-commit run --all-files`。
+
+<Callout type="warning">
+  不要在 pixi 环境里用 `pip install`。pip 装的依赖不会被 `pixi.toml` 或 `pixi.lock` 追踪，下次解析时会消失。要加依赖请改 `pixi.toml`，再运行 `pixi install`。
+</Callout>

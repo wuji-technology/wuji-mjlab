@@ -1,0 +1,20 @@
+# Public path prefixes — consumed by the docs-followup workflow.
+# Each non-comment, non-blank line is an anchored path prefix (matched against
+# `git diff --name-only` of the merged PR). A change touching any of these is
+# treated as user-visible and triggers docs follow-up analysis.
+
+# 任务包与公开 Python API（任务 ID、观测/动作/命令、评测核心）
+src/
+
+# sim2real 部署桥（用户运行的脚本与需调的配置）
+deploy/
+
+# 训练 / 回放 / 工具入口
+scripts/
+
+# pixi 任务定义与打包元数据
+pixi.toml
+pyproject.toml
+
+# 对外文档源
+docs/external/

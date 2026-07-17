@@ -1,0 +1,146 @@
+---
+title: Sim-to-real 部署
+description: 在真机 Wuji Hand 上运行训练好的 reorient 策略——软件管线、位姿估计调优、闭环控制与端到端冒烟测试。
+---
+
+部署桥在真机 Wuji Hand 上运行导出的 ONNX 策略。视觉模块通过 MVS SDK 直接读取相机，追踪一个锚定在手腕 AprilTag 世界坐标系上的 ArUco 标定 cube，把位姿通过 ZMQ 发布出去。`play_real` 进程订阅位姿、跑 ONNX 推理，把动作命令闭环下发到手部驱动。
+
+本页假设装置已搭建并标定。若未完成，先看[硬件搭建](../hardware)。
+
+<Callout type="info">
+  部署无需训练。从 [Releases](https://github.com/wuji-technology/wuji-mjlab/releases) 下载预训练的 `policy.onnx` 与 `policy_config.json`，把 `policy.onnx` 路径作为 `--ckpt` 传入。演示就是这个 release 策略跑出来的。
+</Callout>
+
+## 管线
+
+```text
++-----------------+       +------------------+       +-------------------+
+| Camera + tags   | -MVS->| cube observer    | -ZMQ->| play_real         |
+| (aruco+apriltag)|       | (cube_world_     |       | (policy + control |
+|                 |       |  observer.py)    |       |  + viewer)        |
++-----------------+       +------------------+       +-------------------+
+                                                              |
+                                                              v
+                                                       +--------------+
+                                                       | WujiHandDriver
+                                                       | (real hardware)
+                                                       +--------------+
+```
+
+`RealHandEnv` 继承 mjlab 的 `ManagerBasedRlEnv`，因此与训练相同的 observation 和 action manager 原封不动地生效，没有并行流水线。在 env 的 `step()` 内，动作下发到手部驱动，观测来自关节状态（经驱动）与 cube 位姿（经 observer 的 ZMQ）的组合。
+
+ONNX 策略通过一个 loader 加载，它读取 sidecar JSON 中导出时捕获的控制模式参数（`action_scale`、`ema_alpha`、`ctrl_dt`、`history_len`）。这让部署推理与产出该 ONNX 的仿真策略完全一致。
+
+## 运行闭环
+
+完成硬件设置后，三个命令各自在独立终端按顺序运行。`home` 是一次性复位。`vision` 与 `play-real` 都会持续运行，不能共用一个终端。
+
+```bash
+# 终端 1 —— 一次性复位，随后退出
+pixi run -e deploy home
+# 终端 2 —— cube observer，持续运行（OpenCV 预览）
+pixi run -e deploy vision
+# 终端 3 —— 闭环控制 + mirror viewer，持续运行
+pixi run -e deploy play-real --ckpt <path-to.onnx>
+```
+
+## 位姿估计调优
+
+硬件固定后，[`observer.yaml`](https://github.com/wuji-technology/wuji-mjlab/blob/main/deploy/reorient/config/observer.yaml) 提供四个旋钮，在噪声与延迟之间权衡。
+
+| 参数 | 默认 | 效果 |
+|---|---|---|
+| `rotation_filter.process_noise` | 0.5 | 越高越灵敏，噪声越大 |
+| `rotation_filter.measurement_noise` | 0.1 | 越低越信任 PnP |
+| `position_filter.alpha` | 0.8 | [0, 1] 范围的低通，1.0 表示不滤波 |
+| `pnp.reproj_threshold` | 6.0 px | 超过该阈值的拟合被丢弃，cube 进入 lost |
+
+`observer.yaml` 内嵌两套预设：
+
+- **Agile**（快速响应，噪声更大）：`process_noise: 0.5`、`measurement_noise: 0.1`、`alpha: 0.8`
+- **Smooth**（稳定，响应更慢）：`process_noise: 0.01`、`measurement_noise: 2.0`、`alpha: 0.2`
+
+随包默认是 agile 预设，也是训练策略部署时使用的配置。
+
+按现象调优：
+
+- Cube 静止时抖动——切换到 smooth 预设。
+- 快速翻转时位姿滞后——切换到 agile 预设。
+- Cube 反复跌入 lost——把 `pnp.reproj_threshold` 提高到约 8.0 px，并重新检查相机内参标定。如果轴向看起来错了，修 `cube_tags.json` 的 face rotations 或重贴对应面的 tag。
+
+## 端到端冒烟测试
+
+按顺序走完以下五个检查点。若任何一步失败，先跳回对应设置章节再继续。
+
+### 步骤 1 — 让手回零
+
+```bash
+pixi run -e deploy home
+```
+
+预期：3 秒平滑斜坡，20 个关节都落入 home 位置 ±2° 内，打印 "home reached"。手指抖动或硬卡停时，先停止控制并断开执行器电源、确认关节已去力，再拔插 USB 线重试。
+
+### 步骤 2 — 启动 cube observer
+
+```bash
+pixi run -e deploy vision
+```
+
+预期：OpenCV 预览出现，手腕标签保持在视野内时黄色 "World Sampling: N/100" 进度条填满，累积 100 个样本平均后标签翻为绿色 "WORLD FIXED"，cube 静止时轴向叠加图稳定。
+
+### 步骤 3 — 验证 ZMQ 位姿流
+
+在第二个终端中（`vision` 已运行），确认 cube 位姿正在端口 5555 上发布：
+
+```bash
+pixi run -e deploy python - <<'EOF'
+import json, zmq
+sock = zmq.Context().socket(zmq.SUB)
+sock.connect("tcp://localhost:5555")
+sock.subscribe(b"")
+sock.setsockopt(zmq.RCVTIMEO, 5000)  # 5 秒收不到就报错，避免无限阻塞
+try:
+    for _ in range(3):
+        msg = json.loads(sock.recv_string())
+        p = msg["cube1"]["position"]
+        print(f"frame={msg['frame']:5d}  pos=({p['x']:+.3f},{p['y']:+.3f},{p['z']:+.3f})")
+except zmq.Again:
+    print("5 秒内没收到位姿 —— vision 是否在运行并向端口 5555 发布？")
+EOF
+```
+
+你应当看到 3 个新的 frame 编号和稳定的位置数值。
+
+### 步骤 4 — cube 位姿可视化检查
+
+保持 `vision` 仍在运行：
+
+```bash
+pixi run -e deploy python deploy/reorient/tools/calib_check.py
+```
+
+这会打开一个 MuJoCo passive viewer 渲染数字孪生，手部 mirror 实时 encoder 读数，cube 显示在 observer 估计的位姿上。挪动物理 cube，观察渲染 cube 是否跟随。相比 ZMQ 检查，这一步还能查出：
+
+- **轴向错配**——让物理 cube 绕某个面轴旋转，渲染 cube 应绕同一个轴。镜像或 90° 偏差意味着 `cube_tags.json` 的 face rotations 不对，或某个 tag 贴反了。
+- **位置偏差**——把 cube 放在手掌中心，渲染 cube 应落在 palm geom 上。> 2 cm 偏差通常意味着手部安装或相机内参有问题。
+
+### 步骤 5 — 运行闭环策略
+
+```bash
+pixi run -e deploy play-real --ckpt <path-to.onnx>
+```
+
+预期：ONNX 策略加载并打印 sidecar JSON，手部回零，一个 passive MuJoCo mirror viewer 打开（显示真实关节、观测到的 cube，以及上方的半透明目标 cube），手部把 cube 朝目标姿态调整，各次试验结果实时打印。
+
+### 排错
+
+| 现象 | 可能原因 | 解决方法 |
+|---|---|---|
+| 相机打不开 | MVS SDK 未安装或 `MVS_PYTHON_PATH` 未设置 | 重做「Hikvision MVS SDK」一节，再跑一遍导入冒烟测试 |
+| 手腕 AprilTag 一直检测不到 | 光照、标签 family、ID 或尺寸错 | 确认 AprilTag36h11、ID 0、48 mm，加强光照 |
+| World Sampling 进度条一直不满 | 手腕标签太小或模糊 | 调位置使标签 ≥ 80 px 宽，重新对焦 |
+| Cube observer 频繁掉 cube | 重投影误差门触发 | 重做相机内参标定，用步骤 4 校验 `cube_tags.json` 面映射 |
+| 策略第一步就发散 | tag 朝向错配 | 修 `cube_tags.json` 的 face rotations 或重贴对应 tag |
+| Rollout 时手抖动 | `ctrl_dt` 策略侧与硬件侧不匹配 | 检查 ONNX sidecar 的 `ctrl_dt`，降低硬件低通截止频率 |
+
+想深入了解策略背后的任务设计，见[架构](../architecture)。

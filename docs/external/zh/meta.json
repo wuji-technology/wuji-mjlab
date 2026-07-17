@@ -1,0 +1,16 @@
+{
+  "title": "wuji-mjlab",
+  "description": "Wuji Hand 立方体手内翻转 RL，从训练到 sim-to-real 部署。",
+  "pages": [
+    "---开始---",
+    "introduction",
+    "installation",
+    "---训练---",
+    "training",
+    "---部署---",
+    "hardware",
+    "sim2real",
+    "---参考---",
+    "architecture"
+  ]
+}

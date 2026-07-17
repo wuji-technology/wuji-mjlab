@@ -1,0 +1,65 @@
+---
+title: 架构
+description: wuji-mjlab 背后的三层栈、reorient 任务与 MDP 设计、接触参数域随机化，以及如何新增任务。
+---
+
+wuji-mjlab 是一个三层栈。本仓库持有任务与部署桥，mjlab 提供 manager-based RL 框架，MuJoCo 与 mujoco-warp 提供 GPU 批量化物理。PPO 通过内嵌在 `src/wuji_rl_libs/rsl_rl/` 下的 [rsl-rl](https://github.com/leggedrobotics/rsl_rl) 后端运行。
+
+```text
++--------------------------------------------------------+
+| wuji-mjlab (this repo)                                 |
+|  +----------------------+  +-------------------------+ |
+|  | tasks/reorient/      |  | deploy/reorient/        | |
+|  |   - env cfg + MDP    |  |   - real-hand env       | |
+|  |   - 2-group DR       |  |   - vision pipeline     | |
+|  |   - eval + export    |  |   - closed-loop control | |
+|  +----------------------+  +-------------------------+ |
+|  src/wuji_rl_libs/rsl_rl/ <- vendored PPO backend      |
++--------------------------------------------------------+
+              |                            |
+              v                            v
++-----------------------+  +---------------------------+
+| mjlab (pip / pixi)    |  | torch + onnxruntime       |
+| + mujoco-warp         |  | (training + inference)    |
+| + mujoco              |  |                           |
++-----------------------+  +---------------------------+
+```
+
+## Reorient 任务
+
+reorient 任务是手掌朝下的灵巧手对握持 cube 做完整 SO(3) 手内翻转。策略接收手掌 tag 坐标系下的目标姿态，把 cube 原地旋转到姿态与目标匹配并保持一个 hold 窗口，且全程不掉落。
+
+任务设计——MDP terms、reward shaping 与域随机化——放在任务包里，与机器人 binding 分离。这个拆分让任务可复用，也让 Wuji Hand binding 保持精简。
+
+| 模块 | 作用 |
+|---|---|
+| `reorient_env_cfg.py` | 精简的装配器，暴露 `make_reorient_env_cfg()` |
+| `reorient_terms.py` | event、termination、reward、DR 构造器——任务设计位于此处 |
+| `reorient_constants.py` | 任务级公共常量（初始位姿、tag-in-palm 变换） |
+| `config/wuji_hand/` | 机器人 binding，把任务设计接入 20 自由度 Wuji Hand |
+| `mdp/` | reorient 任务特有的观测、命令、动作 |
+| `tooling/` | 可 import、无副作用的评测与 ONNX 导出核心 |
+
+`mdp/` 包持有 mjlab manager 系统消费的运行时任务 terms，包括 SO(3) 目标状态机（`commands.py`）、手掌相对的 cage 几何与 reward 升级（`cage.py`），以及 action、observation、reward、termination、curriculum 的标准 term 模块。
+
+## 域随机化
+
+接触参数域随机化把手分成两个解剖学组：手掌加拇指柔顺区，与食指到小指。分组分别随机化（而非统一随机化），正是让仿真训练的策略迁移到真机不均匀接触行为的关键。完整随机化规格在 `reorient_terms.py`。
+
+## 部署复用
+
+部署桥原封不动地复用仿真 env。`RealHandEnv` 继承 mjlab 的 `ManagerBasedRlEnv`，因此相同的 observation 和 action manager 在真机上生效，没有并行流水线会漂移失同步。运行时管线见 [Sim-to-real 部署](../sim2real)。
+
+## 架构约束
+
+- `mdp/event_impl/` 下的 event 实现拆分是内部的。外部调用方只通过 `mdp.events` facade 消费 event。
+- `ReorientEventState` 是每个 event 侧运行时缓存的唯一持有者。通过 `get_reorient_event_state(env)` 访问它，而非直接在 `env` 上挂字段。
+- `tooling/` 是脚本逻辑的可 import 核心。`scripts/` 只持有 argparse、env-var 设置与 `__main__` 胶水，所以 `tooling/` 里的任何东西都能从 Python 调用，用于 sweep、测试或 notebook。
+- 公共 API 面（`make_reorient_env_cfg`、`wuji_hand_reorient_env_cfg`、`mdp` re-export、已注册任务 ID 与评测核心）保持稳定。内部模块可以移动，但外部调用方消费的名字不会。
+
+## 新增任务
+
+1. 在 `src/wuji_mjlab/tasks/<your_task>/` 下创建 env-cfg 工厂。
+2. 把所有 MDP 设计（events、rewards、terminations）放入 `<your_task>_terms.py`，`config/<robot>/` 层保持精简 binding。
+3. 在 `config/<robot>/__init__.py` 中用 `register_mjlab_task()` 注册任务。
+4. 提交前跑一遍 `pixi run train --task <your_task_id>` 冒烟测试。标准训练入口是 `scripts/train/train_rsl_rl.py`，通过 `train` pixi 任务暴露。

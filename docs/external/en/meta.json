@@ -1,0 +1,16 @@
+{
+  "title": "wuji-mjlab",
+  "description": "In-hand cube reorientation RL for the Wuji Hand, from training to sim-to-real deployment.",
+  "pages": [
+    "---Get Started---",
+    "introduction",
+    "installation",
+    "---Train---",
+    "training",
+    "---Deploy---",
+    "hardware",
+    "sim2real",
+    "---Reference---",
+    "architecture"
+  ]
+}

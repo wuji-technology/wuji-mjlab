@@ -1,0 +1,46 @@
+---
+title: 简介
+description: Wuji Hand 上的立方体手内翻转——在 mjlab 中用 PPO 训练覆盖完整 SO(3) 目标空间的策略，并通过 sim-to-real 桥在真机上闭环部署。
+---
+
+wuji-mjlab 是 Wuji Hand 上的立方体手内翻转强化学习项目。它在 [mjlab](https://github.com/mujocolab/mjlab) 中用 PPO 训练覆盖完整 SO(3) 目标空间的策略，再通过 sim-to-real 桥部署到真机上。项目提供预训练 checkpoint、部署脚本与硬件搭建指南，让你能端到端复现演示。
+
+<Callout type="info">
+  本 release 面向 Wuji Hand（第一代）。部署桥封装 Wuji Hand SDK，需要匹配的固件版本。
+</Callout>
+
+<div style={{ display: 'flex', gap: '2%', justifyContent: 'center', flexWrap: 'nowrap' }}>
+  <img src="./images/sim.gif" style={{ width: '49%', height: 'auto' }} alt="仿真翻转演示" />
+  <img src="./images/real.gif" style={{ width: '49%', height: 'auto' }} alt="真机翻转演示" />
+</div>
+
+## 任务
+
+项目围绕一个任务展开，含两套训练配置。
+
+| 机器人 | 任务 ID | 预训练 checkpoint | 演示 |
+|---|---|---|---|
+| Wuji Hand | `WujiHand_Reorient` | [最新 release 附件](https://github.com/wuji-technology/wuji-mjlab/releases/latest) | 上方仿真与真机演示 |
+
+策略在手掌朝下的手中握住一个立方体，接收手掌坐标系下的目标姿态，把立方体原地旋转到姿态与目标匹配并保持一个 hold 窗口，且全程不掉落。
+
+## 你将获得
+
+- 一套经标定的管线，在真机 Wuji Hand 上运行训练好的 ONNX 策略
+- 预训练 checkpoint 与已发布策略资产，无需训练即可部署
+- 3D 打印的 ArUco 标定 cube、手腕 AprilTag 世界坐标系，以及相机标定流程
+- 两套训练配置：复现演示的 release 配置，以及低显存变体
+
+## 获取已发布资产
+
+从最新 release 拉取预训练 checkpoint 和 CAD 包：
+
+```bash
+# 需要 GitHub CLI (https://cli.github.com)。glob 通配让该命令在
+# 未来的 release tag 下也无需修改即可继续工作。
+gh release download --repo wuji-technology/wuji-mjlab --pattern '*-assets.zip'
+unzip wuji-mjlab-*-assets.zip
+mv wuji-mjlab-*-assets release-assets
+```
+
+若没有 `gh` CLI，打开 [latest release 页面](https://github.com/wuji-technology/wuji-mjlab/releases/latest)，手动下载 `wuji-mjlab-v*-assets.zip` 附件，再执行同样的 `unzip` 与 `mv` 命令。

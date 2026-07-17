@@ -1,0 +1,75 @@
+name: Docs Follow-up Callback
+
+# Self-hosted variant — all logic inline, no reusable workflow / App token.
+#
+# Closes the docs follow-up loop: when the maintainer comments `/docs-done` or
+# `/docs-skip` on a PR tagged `docs:followup`, this workflow clears the label,
+# posts a confirmation, and sends a final Feishu DM.
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  finish:
+    if: >-
+      github.event.issue.pull_request != null
+      && contains(github.event.issue.labels.*.name, 'docs:followup')
+      && github.event.comment.user.login == vars.DOCS_MAINTAINER
+      && (startsWith(github.event.comment.body, '/docs-done')
+          || startsWith(github.event.comment.body, '/docs-skip'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Clear label and confirm on PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          # Tolerate only HTTP 404 (two quick /docs-done comments racing two
+          # runs; removing an absent label is a no-op outcome). Anything else
+          # must propagate.
+          if ! err="$(gh api -X DELETE \
+            "repos/$REPO/issues/$PR_NUMBER/labels/docs:followup" \
+            2>&1 >/dev/null)"; then
+            if ! grep -q "HTTP 404" <<<"$err"; then
+              printf '%s\n' "$err" >&2
+              exit 1
+            fi
+          fi
+          gh pr comment "$PR_NUMBER" -R "$REPO" \
+            --body "✅ 文档跟进已收尾，\`docs:followup\` 标签已清除。"
+
+      - name: Feishu DM (callback outcome)
+        env:
+          FEISHU_DOCS_DM_WEBHOOK: ${{ secrets.FEISHU_DOCS_DM_WEBHOOK }}
+          FEISHU_DOCS_DM_SIGN_SECRET: ${{ secrets.FEISHU_DOCS_DM_SIGN_SECRET }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          PR_TITLE: ${{ github.event.issue.title }}
+          PR_AUTHOR: ${{ github.event.issue.user.login }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          if [[ "$COMMENT_BODY" == /docs-skip* ]]; then
+            STATUS=skipped
+            DETAIL="${COMMENT_BODY#/docs-skip}"
+          else
+            STATUS=done
+            DETAIL="${COMMENT_BODY#/docs-done}"
+          fi
+          DETAIL="$(printf '%s' "$DETAIL" | sed -E 's/^[[:space:]]*[-—:][[:space:]]*//; s/^[[:space:]]+//; s/[[:space:]]+$//')"
+          bash .github/scripts/docs-followup/feishu-dm.sh \
+            --pr "$PR_NUMBER" \
+            --status "$STATUS" \
+            --pr-title "$PR_TITLE" \
+            --pr-author "$PR_AUTHOR" \
+            --detail "$DETAIL"
