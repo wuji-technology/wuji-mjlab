@@ -29,7 +29,7 @@ This page assumes the rig is already built and calibrated. If not, start with [H
 
 `RealHandEnv` subclasses mjlab's `ManagerBasedRlEnv`, so the same observation and action managers as training apply verbatim — no duplicated pipelines. Inside the env's `step()`, actions go to the hand driver, and observations come from a mix of joint state (via the driver) and cube pose (via ZMQ from the observer).
 
-The ONNX policy loads through a loader that reads the sidecar JSON for control-mode parameters (`action_scale`, `ema_alpha`, `ctrl_dt`, `history_len`) captured at export time. This keeps deploy inference identical to the sim policy that produced the ONNX.
+The ONNX policy loads through a loader that reads the sidecar JSON for control-mode parameters (`action_scale`, `ema_alpha`, `warmup_time_s`, `control_mode`, `history_len`, `ctrl_dt`) captured at export time. This keeps deploy inference identical to the sim policy that produced the ONNX.
 
 ## Run the Closed Loop
 
@@ -90,7 +90,7 @@ Expected: the OpenCV preview appears, a yellow "World Sampling: N/100" bar fills
 
 ### Step 3 — Verify the ZMQ Pose Stream
 
-In a second terminal with `vision` running, confirm cube poses publish on port 5555:
+In another terminal (keep `vision` running), confirm cube poses publish on port 5555:
 
 ```bash
 pixi run -e deploy python - <<'EOF'

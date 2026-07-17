@@ -25,7 +25,12 @@ name: Post-Merge Docs Follow-up
 #   - .github/scripts/docs-followup/*.sh
 
 on:
-  pull_request:
+  # pull_request_target (not pull_request): fork PRs get no secrets and a
+  # read-only GITHUB_TOKEN under pull_request, which would break labeling,
+  # PR comments, and the Feishu DM for merged fork PRs. All jobs check out
+  # and execute scripts from the BASE repo only (actions/checkout default
+  # under pull_request_target), never PR head code, so this is safe.
+  pull_request_target:
     types: [closed]
     branches: [main]
 

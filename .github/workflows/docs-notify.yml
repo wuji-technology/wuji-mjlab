@@ -1,11 +1,12 @@
 name: "Docs: Notify Docs Center"
 
-env:
-  AUTOMATION_APP_ID: ${{ vars.AUTOMATION_APP_ID }}
-  AUTOMATION_APP_PRIVATE_KEY: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
-
 on:
-  pull_request:
+  # pull_request_target (not pull_request): fork PRs get no secrets and a
+  # read-only token under pull_request, which would silently disable the App
+  # token generation and cross-repo dispatch. This workflow never checks out
+  # or executes PR head code — it only reads event metadata — so the elevated
+  # context is safe.
+  pull_request_target:
     types: [opened, synchronize, reopened]
     paths:
       - 'docs/external/**'
@@ -21,6 +22,11 @@ jobs:
     steps:
       - name: Check automation app config
         id: automation-config
+        # Secrets are scoped to the steps that need them instead of a
+        # workflow-level env, so third-party actions never see the App key.
+        env:
+          AUTOMATION_APP_ID: ${{ vars.AUTOMATION_APP_ID }}
+          AUTOMATION_APP_PRIVATE_KEY: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
         run: |
           if [[ -n "${AUTOMATION_APP_ID}" && -n "${AUTOMATION_APP_PRIVATE_KEY}" ]]; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
@@ -34,12 +40,15 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v2
         with:
-          app-id: ${{ env.AUTOMATION_APP_ID }}
-          private-key: ${{ env.AUTOMATION_APP_PRIVATE_KEY }}
+          app-id: ${{ vars.AUTOMATION_APP_ID }}
+          private-key: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
           owner: wuji-technology
           repositories: wuji-docs-center
+          # repository_dispatch only needs contents: write — don't inherit
+          # the installation's full permission set.
+          permission-contents: write
       - name: Notify docs preview
-        if: steps.automation-config.outputs.configured == 'true' && github.event_name == 'pull_request'
+        if: steps.automation-config.outputs.configured == 'true' && github.event_name == 'pull_request_target'
         uses: peter-evans/repository-dispatch@v4
         with:
           token: ${{ steps.app-token.outputs.token }}

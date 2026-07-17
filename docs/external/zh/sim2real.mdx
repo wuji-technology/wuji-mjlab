@@ -29,7 +29,7 @@ description: 在真机 Wuji Hand 上运行训练好的 reorient 策略——软�
 
 `RealHandEnv` 继承 mjlab 的 `ManagerBasedRlEnv`，因此与训练相同的 observation 和 action manager 原封不动地生效，没有并行流水线。在 env 的 `step()` 内，动作下发到手部驱动，观测来自关节状态（经驱动）与 cube 位姿（经 observer 的 ZMQ）的组合。
 
-ONNX 策略通过一个 loader 加载，它读取 sidecar JSON 中导出时捕获的控制模式参数（`action_scale`、`ema_alpha`、`ctrl_dt`、`history_len`）。这让部署推理与产出该 ONNX 的仿真策略完全一致。
+ONNX 策略通过一个 loader 加载，它读取 sidecar JSON 中导出时捕获的控制模式参数（`action_scale`、`ema_alpha`、`warmup_time_s`、`control_mode`、`history_len`、`ctrl_dt`）。这让部署推理与产出该 ONNX 的仿真策略完全一致。
 
 ## 运行闭环
 
@@ -90,7 +90,7 @@ pixi run -e deploy vision
 
 ### 步骤 3 — 验证 ZMQ 位姿流
 
-在第二个终端中（`vision` 已运行），确认 cube 位姿正在端口 5555 上发布：
+另开一个终端（保持 `vision` 持续运行），确认 cube 位姿正在端口 5555 上发布：
 
 ```bash
 pixi run -e deploy python - <<'EOF'

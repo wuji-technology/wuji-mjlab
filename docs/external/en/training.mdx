@@ -77,7 +77,7 @@ for trial in result.trials:
 
 ## Export to ONNX
 
-Deployment consumes an ONNX policy plus a sidecar JSON that records the control-mode parameters (`action_scale`, `ema_alpha`, `ctrl_dt`) captured at export time:
+Deployment consumes an ONNX policy plus a sidecar JSON that records the control-mode parameters (`action_scale`, `ema_alpha`, `warmup_time_s`, `control_mode`, `history_len`, `ctrl_dt`) captured at export time:
 
 ```bash
 pixi run python -m wuji_mjlab.tasks.reorient.scripts.export_onnx <path-to-ckpt.pt>

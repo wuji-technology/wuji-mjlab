@@ -77,7 +77,7 @@ for trial in result.trials:
 
 ## 导出为 ONNX
 
-部署消费一个 ONNX 策略，外加一个 sidecar JSON——记录导出时捕获的控制模式参数（`action_scale`、`ema_alpha`、`ctrl_dt`）：
+部署消费一个 ONNX 策略，外加一个 sidecar JSON——记录导出时捕获的控制模式参数（`action_scale`、`ema_alpha`、`warmup_time_s`、`control_mode`、`history_len`、`ctrl_dt`）：
 
 ```bash
 pixi run python -m wuji_mjlab.tasks.reorient.scripts.export_onnx <path-to-ckpt.pt>
