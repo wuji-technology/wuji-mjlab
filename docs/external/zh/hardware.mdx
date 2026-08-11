@@ -138,7 +138,7 @@ pixi run python deploy/reorient/tools/view_release_cube.py
 1. 用任意单一材料从 `cube.step` 打印 cube 主体。打印后用卡尺核对 54 mm 边长。
 2. 把 `cube.png` 按 UV 展开尺寸印在哑光 vinyl 或覆膜纸上。沿面边界裁剪得到 6 张 54 × 54 mm 贴纸。
 3. 把每张贴纸贴到对应面上。标签 ID 编码所属面，贴纸时按 `cube_tags.json` 映射放置。
-4. 若贴纸没法刚好落在距面中心 18 mm 处，在 `cube_tags.json` 中重新标定 `tag_center_offset`。
+4. 若贴纸无法恰好落在距面中心 18 mm 处，在 `cube_tags.json` 中重新标定 `tag_center_offset`。
 
 在 ArUco 检测层面，贴纸 cube 与双材料 cube 功能等价，但更容易掉皮和对齐偏差。条件允许时优先选用 `.3mf`。
 
