@@ -5,7 +5,7 @@ description: 搭建 reorient 策略的 sim-to-real 装置——相机、MVS SDK�
 
 本指南介绍在真机 Wuji Hand 上运行训练好的 `WujiHand_Reorient` ONNX 策略所需的硬件侧配置。软件管线见 [Sim-to-real 部署](../sim2real)。
 
-完成后，你将拥有一个经标定的相机、一个 3D 打印的 ArUco cube、一个手腕 AprilTag 世界坐标系、一台装在治具上的 Wuji Hand，以及针对你的装置填好的 `camera.yaml` 与 `cube_tags.json`。
+完成后将得到一台经标定的相机、一个 3D 打印的 ArUco cube、一个手腕 AprilTag 世界坐标系、一台装在治具上的 Wuji Hand，以及按实际装置填好的 `camera.yaml` 与 `cube_tags.json`。
 
 <p align="center">
   <img src="./images/deploy.gif" width="80%" alt="参考装置：相机俯拍 Wuji Hand 与治具，右侧 MuJoCo mirror viewer 同步" />
@@ -56,7 +56,7 @@ sudo apt install ./MVS-*.deb
 sudo rpm -i MVS-*.rpm
 ```
 
-上述方式默认都会把文件安装到 `/opt/MVS/` 下。安装完成后你应能看到 `/opt/MVS/lib/64/libMvCameraControl.so`（运行时库）、`/opt/MVS/Samples/64/Python/MvImport/`（Python 绑定）、`/opt/MVS/bin/MVS`（设备发现 GUI）。
+上述方式默认都会把文件安装到 `/opt/MVS/` 下。安装完成后应能看到 `/opt/MVS/lib/64/libMvCameraControl.so`（运行时库）、`/opt/MVS/Samples/64/Python/MvImport/`（Python 绑定）、`/opt/MVS/bin/MVS`（设备发现 GUI）。
 
 **系统调优**（要稳定支撑 `camera.yaml` 中配置的采集帧率，必须执行）：
 

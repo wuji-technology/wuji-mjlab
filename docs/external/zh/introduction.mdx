@@ -3,7 +3,7 @@ title: 简介
 description: Wuji Hand 上的立方体手内翻转——在 mjlab 中用 PPO 训练覆盖完整 SO(3) 目标空间的策略，并通过 sim-to-real 桥在真机上闭环部署。
 ---
 
-wuji-mjlab 是 Wuji Hand 上的立方体手内翻转强化学习项目。它在 [mjlab](https://github.com/mujocolab/mjlab) 中用 PPO 训练覆盖完整 SO(3) 目标空间的策略，再通过 sim-to-real 桥部署到真机上。项目提供预训练 checkpoint、部署脚本与硬件搭建指南，让你能端到端复现演示。
+wuji-mjlab 是 Wuji Hand 上的立方体手内翻转强化学习项目。它在 [mjlab](https://github.com/mujocolab/mjlab) 中用 PPO 训练覆盖完整 SO(3) 目标空间的策略，再通过 sim-to-real 桥部署到真机上。项目提供预训练 checkpoint、部署脚本与硬件搭建指南，支持端到端复现演示。
 
 <Callout type="info">
   本 release 面向 Wuji Hand（第一代）。部署桥封装 Wuji Hand SDK，需要匹配的固件版本。
@@ -24,7 +24,7 @@ wuji-mjlab 是 Wuji Hand 上的立方体手内翻转强化学习项目。它在 
 
 策略在手掌朝下的手中握住一个立方体，接收手掌坐标系下的目标姿态，把立方体原地旋转到姿态与目标匹配并保持一个 hold 窗口，且全程不掉落。
 
-## 你将获得
+## 最终产出
 
 - 一套经标定的管线，在真机 Wuji Hand 上运行训练好的 ONNX 策略
 - 预训练 checkpoint 与已发布策略资产，无需训练即可部署
