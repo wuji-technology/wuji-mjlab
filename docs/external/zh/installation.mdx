@@ -66,7 +66,7 @@ extra-index-urls = ["https://mirrors.aliyun.com/pytorch-wheels/cu128"]
 pixi run pre-commit install
 ```
 
-之后每次 `git commit` 都会在本地跑 ruff、codespell，以及 YAML、TOML 与大文件检查，在 CI 之前拦截问题。手动全量跑用 `pixi run pre-commit run --all-files`。
+之后每次 `git commit` 都会在本地运行 ruff、codespell，以及 YAML、TOML 与大文件检查，在 CI 之前拦截问题。手动执行全量检查用 `pixi run pre-commit run --all-files`。
 
 <Callout type="warning">
   不要在 pixi 环境里用 `pip install`。pip 装的依赖不会被 `pixi.toml` 或 `pixi.lock` 追踪，下次解析时会消失。要加依赖请改 `pixi.toml`，再运行 `pixi install`。

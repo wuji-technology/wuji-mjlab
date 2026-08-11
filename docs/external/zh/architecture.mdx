@@ -62,4 +62,4 @@ reorient 任务是手掌朝下的灵巧手对握持 cube 做完整 SO(3) 手内�
 1. 在 `src/wuji_mjlab/tasks/<your_task>/` 下创建 env-cfg 工厂。
 2. 把所有 MDP 设计（events、rewards、terminations）放入 `<your_task>_terms.py`，`config/<robot>/` 层保持精简 binding。
 3. 在 `config/<robot>/__init__.py` 中用 `register_mjlab_task()` 注册任务。
-4. 提交前跑一遍 `pixi run train --task <your_task_id>` 冒烟测试。标准训练入口是 `scripts/train/train_rsl_rl.py`，通过 `train` pixi 任务暴露。
+4. 提交前运行一次 `pixi run train --task <your_task_id>` 冒烟测试。标准训练入口是 `scripts/train/train_rsl_rl.py`，通过 `train` pixi 任务暴露。

@@ -140,7 +140,7 @@ pixi run python deploy/reorient/tools/view_release_cube.py
 3. 把每张贴纸贴到对应面上。标签 ID 编码所属面，贴纸时按 `cube_tags.json` 映射放置。
 4. 若贴纸无法恰好落在距面中心 18 mm 处，在 `cube_tags.json` 中重新标定 `tag_center_offset`。
 
-在 ArUco 检测层面，贴纸 cube 与双材料 cube 功能等价，但更容易掉皮和对齐偏差。条件允许时优先选用 `.3mf`。
+在 ArUco 检测层面，贴纸 cube 与双材料 cube 功能等价，但更容易出现贴纸脱落和对齐偏差。条件允许时优先选用 `.3mf`。
 
 <Callout type="info">
   `cube.png` 与 `cube.3mf` 中 6 面的彩色底色纯粹是为了肉眼区分各面。检测器只读黑白标签 pattern，observer 会施加灰度变换，把任何彩色背景压到接近 0。走贴纸路线时，纯白底色即可，只要标签 pattern 保持白底黑字的高对比度。
