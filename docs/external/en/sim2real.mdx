@@ -66,7 +66,7 @@ Tuning by symptom:
 
 - Cube jitter when held still — switch to the smooth preset.
 - Pose lag during fast reorientation — switch to the agile preset.
-- Cube drops to lost repeatedly — raise `pnp.reproj_threshold` to ~8.0 px and re-check the camera intrinsics calibration. If axes look swapped, fix `cube_tags.json` face rotations or re-stick the offending tag.
+- Cube drops to lost repeatedly — raise `pnp.reproj_threshold` to ~8.0 px and re-check the camera intrinsics calibration. If axes look swapped, fix `face_rotations` in `cube_tags.json` or re-stick the offending tag.
 
 ## End-to-End Smoke Test
 
@@ -121,7 +121,7 @@ pixi run -e deploy python deploy/reorient/tools/calib_check.py
 
 This opens a MuJoCo passive viewer of the digital twin. The hand mirrors live encoder readings, and the cube renders at the observer's pose estimate. Move the physical cube and watch the rendered cube follow. This catches what the ZMQ check can't:
 
-- **Axis mismatches** — rotate the physical cube around one face axis and confirm the rendered cube rotates around the same axis. A mirrored or 90°-off rotation means `cube_tags.json` face rotations are wrong, or a tag was placed in the wrong orientation.
+- **Axis mismatches** — rotate the physical cube around one face axis and confirm the rendered cube rotates around the same axis. A mirrored or 90°-off rotation means the `face_rotations` in `cube_tags.json` are wrong, or a tag was placed in the wrong orientation.
 - **Position offset** — center the cube on the palm. The rendered cube should sit on the palm geom. A > 2 cm offset usually means the hand mounting or camera intrinsics are off.
 
 ### Step 5 — Run the Closed-Loop Policy
@@ -140,7 +140,7 @@ Expected: the ONNX policy loads and prints its sidecar JSON, the hand homes, a p
 | Wrist AprilTag never detected | Lighting, wrong tag family, ID, or size | Confirm AprilTag36h11, ID 0, 48 mm, and raise lighting |
 | World Sampling bar never fills | Wrist tag small or blurry | Reposition so the tag is ≥ 80 px wide, refocus |
 | Cube observer drops the cube often | Reprojection-error gate firing | Re-do the camera intrinsics calibration, verify the `cube_tags.json` face mapping with Step 4 |
-| Policy diverges on the first step | Tag orientation mismatch | Fix `cube_tags.json` face rotations or re-place the offending tag |
+| Policy diverges on the first step | Tag orientation mismatch | Fix `face_rotations` in `cube_tags.json` or re-place the offending tag |
 | Hand judders during rollout | `ctrl_dt` mismatch between policy and hardware | Check the ONNX sidecar `ctrl_dt`, lower the hardware low-pass cutoff |
 
 For a deeper look at the task design behind the policy, see [Architecture](../architecture).
