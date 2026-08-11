@@ -85,18 +85,20 @@ python -m wuji_mjlab.tasks.reorient.scripts.export_onnx <path-to-ckpt.pt>
 from pathlib import Path
 from wuji_mjlab.tasks.reorient.tooling.eval_core import EvalConfig, run_eval
 
-result = run_eval(EvalConfig(
+result = run_eval(
+  EvalConfig(
     onnx_path=Path("logs/wuji_reorient/exp1/policy.onnx"),
     num_trials=50,
     no_viewer=True,
-))
+  )
+)
 print(f"success_rate = {result.success_rate:.2%}")
 print(f"mean min ori error = {result.mean_min_ori_error_rad:.3f} rad")
 
 # Per-trial data for custom analysis
 for trial in result.trials:
-    if trial.status == "success":
-        print(f"trial {trial.trial_idx}: t_first_succ={trial.time_to_first_success_s:.2f}s")
+  if trial.status == "success":
+    print(f"trial {trial.trial_idx}: t_first_succ={trial.time_to_first_success_s:.2f}s")
 ```
 
 ## 架构约束
