@@ -11,7 +11,7 @@ description: 训练 reorient PPO 策略、回放 checkpoint、评测成功率，
 pixi run train --task WujiHand_Reorient --agent.upload-model False
 ```
 
-`--agent.upload-model False` 表示 checkpoint 只存本地。去掉它并设置 `WANDB_API_KEY`，最后一次迭代的 checkpoint 还会作为 model artifact 上传到 W&B。无论是否上传，本地 `.pt` 都会在每个 `save_interval` 触发点写入。
+`--agent.upload-model False` 表示 checkpoint 只存本地。移除该参数并设置 `WANDB_API_KEY`，最后一次迭代的 checkpoint 还会作为 model artifact 上传到 W&B。无论是否上传，本地 `.pt` 都会在每个 `save_interval` 触发点写入。
 
 Checkpoint 与 W&B 日志写入 `logs/rsl_rl/<run_name>/`。
 
@@ -31,7 +31,7 @@ Checkpoint 与 W&B 日志写入 `logs/rsl_rl/<run_name>/`。
   pixi run train --task WujiHand_Reorient_Light
   ```
 
-  `WujiHand_Reorient_Light` 能舒服跑在约 12 GB 卡上，但收敛到较弱的策略，在较难的翻转上偶尔掉 cube、出现卡手。
+  `WujiHand_Reorient_Light` 可在约 12 GB 显存的 GPU 上运行，但收敛到较弱的策略，在较难的翻转上偶尔掉 cube、出现卡手。
 </Callout>
 
 ## 回放与评测
