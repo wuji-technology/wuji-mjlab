@@ -66,7 +66,7 @@ pixi run -e deploy play-real --ckpt <path-to.onnx>
 
 - Cube 静止时抖动——切换到 smooth 预设。
 - 快速翻转时位姿滞后——切换到 agile 预设。
-- Cube 反复跌入 lost——把 `pnp.reproj_threshold` 提高到约 8.0 px，并重新检查相机内参标定。若轴向显示异常，修改 `cube_tags.json` 的 face rotations 或重贴对应面的 tag。
+- Cube 反复跌入 lost——把 `pnp.reproj_threshold` 提高到约 8.0 px，并重新检查相机内参标定。若轴向显示异常，修改 `cube_tags.json` 的 `face_rotations` 或重贴对应面的 tag。
 
 ## 端到端冒烟测试
 
@@ -121,7 +121,7 @@ pixi run -e deploy python deploy/reorient/tools/calib_check.py
 
 这会打开一个 MuJoCo passive viewer 渲染数字孪生，手部 mirror 实时 encoder 读数，cube 显示在 observer 估计的位姿上。移动物理 cube，观察渲染 cube 是否跟随。相比 ZMQ 检查，这一步还能查出：
 
-- **轴向错配**——让物理 cube 绕某个面轴旋转，渲染 cube 应绕同一个轴。镜像或 90° 偏差意味着 `cube_tags.json` 的 face rotations 不对，或某个 tag 贴反了。
+- **轴向错配**——让物理 cube 绕某个面轴旋转，渲染 cube 应绕同一个轴。镜像或 90° 偏差意味着 `cube_tags.json` 的 `face_rotations` 不对，或某个 tag 贴反了。
 - **位置偏差**——把 cube 放在手掌中心，渲染 cube 应落在 palm geom 上。> 2 cm 偏差通常意味着手部安装或相机内参有问题。
 
 ### 步骤 5 — 运行闭环策略
@@ -140,7 +140,7 @@ pixi run -e deploy play-real --ckpt <path-to.onnx>
 | 手腕 AprilTag 一直检测不到 | 光照、标签 family、ID 或尺寸错 | 确认 AprilTag36h11、ID 0、48 mm，加强光照 |
 | World Sampling 进度条一直不满 | 手腕标签太小或模糊 | 调位置使标签 ≥ 80 px 宽，重新对焦 |
 | Cube observer 频繁掉 cube | 重投影误差门触发 | 重做相机内参标定，用步骤 4 校验 `cube_tags.json` 面映射 |
-| 策略第一步就发散 | tag 朝向错配 | 修改 `cube_tags.json` 的 face rotations 或重贴对应 tag |
+| 策略第一步就发散 | tag 朝向错配 | 修改 `cube_tags.json` 的 `face_rotations` 或重贴对应 tag |
 | Rollout 时手抖动 | `ctrl_dt` 策略侧与硬件侧不匹配 | 检查 ONNX sidecar 的 `ctrl_dt`，降低硬件低通截止频率 |
 
 想深入了解策略背后的任务设计，见[架构](../architecture)。
