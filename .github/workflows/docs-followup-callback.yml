@@ -58,12 +58,15 @@ jobs:
             REST="${REST//"$DOCS_PR_URL"/}"
           fi
           DETAIL="$(printf '%s' "$REST" | sed -E 's/^[[:space:]]*[-—:][[:space:]]*//; s/^[[:space:]]+//; s/[[:space:]]+$//')"
+          # 随机分隔符：DETAIL 来自评论正文，固定 EOF 会被正文里的 EOF 行提前截断，
+          # 甚至被后续行覆盖 docs_pr_url（GitHub 官方建议）
+          DELIM="detail_$(openssl rand -hex 16)"
           {
             echo "verdict=$VERDICT"
             echo "docs_pr_url=$DOCS_PR_URL"
-            echo "detail<<EOF"
+            echo "detail<<$DELIM"
             echo "$DETAIL"
-            echo "EOF"
+            echo "$DELIM"
           } >> "$GITHUB_OUTPUT"
 
       - name: Clear label and confirm on PR
