@@ -26,11 +26,6 @@
 #                              `/docs-skip` in the trigger comment — e.g. a
 #                              docs PR link or a skip rationale. Empty string
 #                              hides the row.
-#   --prompt <text>            Full Claude prompt to render as a copyable code
-#                              block at the end of the card. Only used by
-#                              status=followup_needed — silently dropped for
-#                              other statuses so callback cards never leak it.
-#                              Empty string hides the block.
 #   --weekly-json <path>       Bucketed weekly debt JSON produced by
 #                              docs-followup-weekly.sh. Required when
 #                              status=weekly_report; ignored otherwise.
@@ -46,7 +41,6 @@ PR_TITLE=""
 PR_AUTHOR=""
 RUN_URL=""
 DETAIL=""
-PROMPT_BODY=""
 WEEKLY_JSON=""
 
 while [[ $# -gt 0 ]]; do
@@ -58,18 +52,10 @@ while [[ $# -gt 0 ]]; do
     --pr-author) PR_AUTHOR="$2"; shift 2 ;;
     --run-url) RUN_URL="$2"; shift 2 ;;
     --detail) DETAIL="$2"; shift 2 ;;
-    --prompt) PROMPT_BODY="$2"; shift 2 ;;
     --weekly-json) WEEKLY_JSON="$2"; shift 2 ;;
     *) echo "Unknown arg: $1" >&2; exit 2 ;;
   esac
 done
-
-# Only the followup_needed card carries the Claude prompt; for any other status
-# (done/skipped/internal_change/failed/weekly_report) drop a stray --prompt so
-# callback, fallback, and weekly cards never accidentally leak it.
-if [[ "$STATUS" != "followup_needed" ]]; then
-  PROMPT_BODY=""
-fi
 
 : "${STATUS:?--status required}"
 # weekly_report is an org-wide digest; it doesn't tie to a single PR, so PR/REPO
@@ -117,6 +103,11 @@ case "$STATUS" in
     HEADER_TEMPLATE="grey"
     BODY_LINE="判定无需改动文档，跟进流程收尾。"
     ;;
+  followup_ready)
+    HEADER_TITLE="✅ Docs Follow-up 已完成 · ${REPO_NAME} #${PR_NUMBER}"
+    HEADER_TEMPLATE="green"
+    BODY_LINE="文档跟进已自动完成，review 意见已清零，文档 PR 待终审合并。"
+    ;;
   failed)
     HEADER_TITLE="❌ Docs Follow-up · ${REPO_NAME} #${PR_NUMBER}"
     HEADER_TEMPLATE="red"
@@ -146,23 +137,10 @@ build_card() {
       --arg run_url "$RUN_URL" \
       --arg pr_number "$PR_NUMBER" \
       --arg detail "$DETAIL" \
-      --arg prompt "$PROMPT_BODY" \
       '
       def kv(name; value):
         if value == "" then empty
         else { "tag": "div", "text": { "tag": "lark_md", "content": "**\(name)：**\(value)" } }
-        end;
-
-      # Render the Claude prompt as a fenced code block at the bottom of the
-      # card. Feishu lark_md gives fenced blocks a copy button, so the
-      # maintainer can grab the entire prompt in one click from the DM. We rely
-      # on the prompt containing only single backticks (paths, inline code) —
-      # the triple-backtick fence then stays safe per CommonMark fencing rules.
-      def prompt_block(text):
-        if text == "" then empty
-        else
-          { "tag": "hr" },
-          { "tag": "div", "text": { "tag": "lark_md", "content": "**完整 Claude prompt**（点代码块右上角复制后粘给 Claude Code）：\n```\n\(text)\n```" } }
         end;
 
       [
@@ -171,8 +149,7 @@ build_card() {
         kv("原 PR"; if $pr_title == "" then "" else "[\($pr_title)](https://github.com/\($repo)/pull/\($pr_number))" end),
         kv("作者"; if $pr_author == "" then "" else "@\($pr_author)" end),
         kv("结论"; $detail),
-        kv("Workflow"; if $run_url == "" then "" else "[运行详情](\($run_url))" end),
-        prompt_block($prompt)
+        kv("Workflow"; if $run_url == "" then "" else "[运行详情](\($run_url))" end)
       ]
       '
   )"

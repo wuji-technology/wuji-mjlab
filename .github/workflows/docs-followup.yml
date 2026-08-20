@@ -10,8 +10,9 @@ name: Post-Merge Docs Follow-up
 # After a PR is merged into main, this workflow checks whether the change
 # touches the public surface (defined in .github/docs-sync-public-packages.txt)
 # and the PR title is not a pure-internal prefix. If both pass, it tags the
-# merged PR with `docs:followup` and DMs the maintainer a Feishu card with
-# the ready-to-use Claude prompt. The maintainer runs Claude locally, then
+# merged PR with `docs:followup` and DMs the maintainer a heads-up Feishu card
+# (no embedded prompt — the follow-up runs through the local docs-followup
+# skill). The maintainer runs Claude locally, then
 # comments /docs-done | /docs-skip on the PR (callback workflow clears the
 # label). This workflow never calls an AI API or edits docs itself.
 #
@@ -253,6 +254,7 @@ jobs:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: bash .github/scripts/docs-followup/docs-followup-comment.sh
 
+      # The Feishu DM is a heads-up card only — it no longer embeds the prompt.
       # Feishu outage must not fail the job — that would trigger a misleading
       # "process failed" fallback even though the PR comment was posted fine.
       - name: Feishu DM (docs follow-up needed)
@@ -265,17 +267,14 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
-          if ! PROMPT="$(bash .github/scripts/docs-followup/docs-followup-prompt.sh)"; then
-            echo "::warning title=Prompt render failed::docs-followup-prompt.sh exited non-zero; followup_needed card will ship without the prompt code block"
-            PROMPT=""
-          fi
+          # The card no longer carries the prompt — the follow-up itself runs
+          # through the local docs-followup skill; the card is notify + guide only.
           bash .github/scripts/docs-followup/feishu-dm.sh \
             --pr "$PR_NUMBER" \
             --status followup_needed \
             --pr-title "$PR_TITLE" \
             --pr-author "$PR_AUTHOR" \
-            --prompt "$PROMPT" \
-          || echo "::error title=Feishu DM failed::followup_needed card not delivered for PR #$PR_NUMBER — maintainer can re-render the prompt locally"
+          || echo "::error title=Feishu DM failed::followup_needed card not delivered for PR #$PR_NUMBER"
 
   failure-fallback:
     needs: [filter, prepare]
