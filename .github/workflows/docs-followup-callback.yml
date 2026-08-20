@@ -30,11 +30,48 @@ jobs:
         with:
           persist-credentials: false
 
+      # 单卡模型：/docs-done 发出的 done 卡是维护者收到的唯一跟进记录，必须带文档
+      # PR 链接。先解析、缺了就在清 label 之前拒绝，避免挂账被清掉却没留下链接。
+      - name: Parse command
+        id: cmd
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          if [[ "$COMMENT_BODY" == /docs-skip* ]]; then
+            VERDICT=skip
+            REST="${COMMENT_BODY#/docs-skip}"
+            DOCS_PR_URL=""
+          else
+            VERDICT=done
+            REST="${COMMENT_BODY#/docs-done}"
+            DOCS_PR_URL="$(grep -oE 'https://github\.com/[^/[:space:]]+/[^/[:space:]]+/pull/[0-9]+' <<<"$REST" | head -1 || true)"
+            if [[ -z "$DOCS_PR_URL" ]]; then
+              gh pr comment "$PR_NUMBER" -R "$REPO" \
+                --body "⚠️ \`/docs-done\` 需要跟上文档 PR 链接（如 \`/docs-done https://github.com/owner/repo/pull/N\`），本次未收尾，\`docs:followup\` 标签保留。"
+              echo "::error title=Missing docs PR link::/docs-done requires a GitHub PR URL"
+              exit 1
+            fi
+            # 链接本身不进结论行，结论只留链接之外的备注
+            REST="${REST//"$DOCS_PR_URL"/}"
+          fi
+          DETAIL="$(printf '%s' "$REST" | sed -E 's/^[[:space:]]*[-—:][[:space:]]*//; s/^[[:space:]]+//; s/[[:space:]]+$//')"
+          {
+            echo "verdict=$VERDICT"
+            echo "docs_pr_url=$DOCS_PR_URL"
+            echo "detail<<EOF"
+            echo "$DETAIL"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Clear label and confirm on PR
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.issue.number }}
+          DOCS_PR_URL: ${{ steps.cmd.outputs.docs_pr_url }}
         run: |
           # Tolerate only HTTP 404 (two quick /docs-done comments racing two
           # runs; removing an absent label is a no-op outcome). Anything else
@@ -47,8 +84,11 @@ jobs:
               exit 1
             fi
           fi
-          gh pr comment "$PR_NUMBER" -R "$REPO" \
-            --body "✅ 文档跟进已收尾，\`docs:followup\` 标签已清除。"
+          BODY="✅ 文档跟进已收尾，\`docs:followup\` 标签已清除。"
+          if [[ -n "$DOCS_PR_URL" ]]; then
+            BODY+=$'\n\n文档 PR：'"$DOCS_PR_URL"
+          fi
+          gh pr comment "$PR_NUMBER" -R "$REPO" --body "$BODY"
 
       - name: Feishu DM (callback outcome)
         env:
@@ -57,19 +97,16 @@ jobs:
           PR_NUMBER: ${{ github.event.issue.number }}
           PR_TITLE: ${{ github.event.issue.title }}
           PR_AUTHOR: ${{ github.event.issue.user.login }}
-          COMMENT_BODY: ${{ github.event.comment.body }}
+          VERDICT: ${{ steps.cmd.outputs.verdict }}
+          DOCS_PR_URL: ${{ steps.cmd.outputs.docs_pr_url }}
+          DETAIL: ${{ steps.cmd.outputs.detail }}
         run: |
-          if [[ "$COMMENT_BODY" == /docs-skip* ]]; then
-            STATUS=skipped
-            DETAIL="${COMMENT_BODY#/docs-skip}"
-          else
-            STATUS=done
-            DETAIL="${COMMENT_BODY#/docs-done}"
-          fi
-          DETAIL="$(printf '%s' "$DETAIL" | sed -E 's/^[[:space:]]*[-—:][[:space:]]*//; s/^[[:space:]]+//; s/[[:space:]]+$//')"
+          STATUS=done
+          [[ "$VERDICT" == "skip" ]] && STATUS=skipped
           bash .github/scripts/docs-followup/feishu-dm.sh \
             --pr "$PR_NUMBER" \
             --status "$STATUS" \
             --pr-title "$PR_TITLE" \
             --pr-author "$PR_AUTHOR" \
+            --docs-pr-url "$DOCS_PR_URL" \
             --detail "$DETAIL"

@@ -11,8 +11,11 @@
 # Required flags:
 #   --pr <number>              The code PR number that triggered this run
 #   --status <kind>            One of:
-#                                internal_change | followup_needed | failed
+#                                internal_change | failed
 #                                done | skipped     (callback outcomes)
+#                              单卡模型（2026-08-20 拍板）：需要跟进的 PR 合入时
+#                              不发卡，只在跟进完成后发一张 done 卡（必带文档
+#                              PR 链接）；不需要跟进的 PR 合入时直接发灰卡。
 #
 # Optional flags (used to enrich the card depending on status):
 #   --repo <owner/name>        Repository slug; defaults to $GITHUB_REPOSITORY.
@@ -20,12 +23,14 @@
 #   --pr-title <title>         Title of the original code PR
 #   --pr-author <login>        GitHub login of the original code PR author
 #   --run-url <url>            Workflow run URL (status=failed)
+#   --docs-pr-url <url>        跟进文档 PR 链接，渲染为独立的「文档 PR」行。
+#                              status=done 时必填——done 卡是维护者收到的跟进
+#                              完成记录，缺链接直接拒发。
 #   --detail <text>            Maintainer-supplied outcome note appended to the
 #                              card body. For callback statuses (done/skipped)
-#                              this is the text after `/docs-done` /
-#                              `/docs-skip` in the trigger comment — e.g. a
-#                              docs PR link or a skip rationale. Empty string
-#                              hides the row.
+#                              this is the text after the command in the
+#                              trigger comment — e.g. a skip rationale or
+#                              grep evidence. Empty string hides the row.
 #   --weekly-json <path>       Bucketed weekly debt JSON produced by
 #                              docs-followup-weekly.sh. Required when
 #                              status=weekly_report; ignored otherwise.
@@ -40,6 +45,7 @@ REPO="${GITHUB_REPOSITORY:-}"
 PR_TITLE=""
 PR_AUTHOR=""
 RUN_URL=""
+DOCS_PR_URL=""
 DETAIL=""
 WEEKLY_JSON=""
 
@@ -51,6 +57,7 @@ while [[ $# -gt 0 ]]; do
     --pr-title) PR_TITLE="$2"; shift 2 ;;
     --pr-author) PR_AUTHOR="$2"; shift 2 ;;
     --run-url) RUN_URL="$2"; shift 2 ;;
+    --docs-pr-url) DOCS_PR_URL="$2"; shift 2 ;;
     --detail) DETAIL="$2"; shift 2 ;;
     --weekly-json) WEEKLY_JSON="$2"; shift 2 ;;
     *) echo "Unknown arg: $1" >&2; exit 2 ;;
@@ -88,25 +95,20 @@ case "$STATUS" in
     HEADER_TEMPLATE="grey"
     BODY_LINE="判定本次改动不需要文档跟进。若觉得判断有误，可手动追加文档更新。"
     ;;
-  followup_needed)
-    HEADER_TITLE="📝 Docs Follow-up · ${REPO_NAME} #${PR_NUMBER}"
-    HEADER_TEMPLATE="blue"
-    BODY_LINE="影响对外公开面，需要文档跟进。请在本地用 Claude 分析并提交文档跟进 PR。"
-    ;;
   done)
     HEADER_TITLE="✅ Docs Follow-up · ${REPO_NAME} #${PR_NUMBER}"
     HEADER_TEMPLATE="green"
-    BODY_LINE="文档已跟进，跟进流程收尾。"
+    BODY_LINE="文档跟进已完成，请查看文档 PR。"
+    # 单卡模型下 done 卡是维护者收到的唯一跟进记录，必须带文档 PR 链接。
+    if [[ -z "$DOCS_PR_URL" ]]; then
+      echo "--docs-pr-url required when --status done" >&2
+      exit 2
+    fi
     ;;
   skipped)
     HEADER_TITLE="📭 Docs Follow-up · ${REPO_NAME} #${PR_NUMBER}"
     HEADER_TEMPLATE="grey"
     BODY_LINE="判定无需改动文档，跟进流程收尾。"
-    ;;
-  followup_ready)
-    HEADER_TITLE="✅ Docs Follow-up 已完成 · ${REPO_NAME} #${PR_NUMBER}"
-    HEADER_TEMPLATE="green"
-    BODY_LINE="文档跟进已自动完成，review 意见已清零，文档 PR 待终审合并。"
     ;;
   failed)
     HEADER_TITLE="❌ Docs Follow-up · ${REPO_NAME} #${PR_NUMBER}"
@@ -136,6 +138,7 @@ build_card() {
       --arg pr_author "$PR_AUTHOR" \
       --arg run_url "$RUN_URL" \
       --arg pr_number "$PR_NUMBER" \
+      --arg docs_pr_url "$DOCS_PR_URL" \
       --arg detail "$DETAIL" \
       '
       def kv(name; value):
@@ -148,6 +151,7 @@ build_card() {
         kv("仓库"; $repo),
         kv("原 PR"; if $pr_title == "" then "" else "[\($pr_title)](https://github.com/\($repo)/pull/\($pr_number))" end),
         kv("作者"; if $pr_author == "" then "" else "@\($pr_author)" end),
+        kv("文档 PR"; if $docs_pr_url == "" then "" else "[\($docs_pr_url)](\($docs_pr_url))" end),
         kv("结论"; $detail),
         kv("Workflow"; if $run_url == "" then "" else "[运行详情](\($run_url))" end)
       ]
