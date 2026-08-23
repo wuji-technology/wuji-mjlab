@@ -40,12 +40,17 @@ jobs:
           PR_NUMBER: ${{ github.event.issue.number }}
           COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
-          if [[ "$COMMENT_BODY" == /docs-skip* ]]; then
-            VERDICT=skip
+          # 命令名后必须是空白、冒号、破折号或行尾。job 级 startsWith 会放行
+          # /docs-done-preview、/docs-skip-review 这类近似写法，按前缀解析会把它们
+          # 当成正式命令并清掉 label，所以在这里用边界重新判一次，落不到任何一条
+          # 就拒绝。连字符 - 不作边界：它与 /docs-skip-review 无法区分，要用它当
+          # 分隔符得写成 /docs-skip - 理由。
+          if [[ "$COMMENT_BODY" =~ ^/docs-skip([[:space:]]|:|—|$) ]]; then
+            VERDICT="skip"
             REST="${COMMENT_BODY#/docs-skip}"
             DOCS_PR_URL=""
-          else
-            VERDICT=done
+          elif [[ "$COMMENT_BODY" =~ ^/docs-done([[:space:]]|:|—|$) ]]; then
+            VERDICT="done"
             REST="${COMMENT_BODY#/docs-done}"
             DOCS_PR_URL="$(grep -oE 'https://github\.com/[^/[:space:]]+/[^/[:space:]]+/pull/[0-9]+' <<<"$REST" | head -1 || true)"
             if [[ -z "$DOCS_PR_URL" ]]; then
@@ -56,8 +61,20 @@ jobs:
             fi
             # 链接本身不进结论行，结论只留链接之外的备注
             REST="${REST//"$DOCS_PR_URL"/}"
+          else
+            gh pr comment "$PR_NUMBER" -R "$REPO" \
+              --body "⚠️ 无法识别的命令，本次未收尾，\`docs:followup\` 标签保留。收尾请用 \`/docs-done <文档 PR 链接>\`，确认无需改文档请用 \`/docs-skip <理由>\`。"
+            echo "::error title=Unrecognized command::expected /docs-done or /docs-skip followed by whitespace or end of line"
+            exit 1
           fi
           DETAIL="$(printf '%s' "$REST" | sed -E 's/^[[:space:]]*[-—:][[:space:]]*//; s/^[[:space:]]+//; s/[[:space:]]+$//')"
+          # 理由是 skip 结论里唯一的人工判定依据，为空就等于无依据地清掉挂账。
+          if [[ "$VERDICT" == "skip" && -z "$DETAIL" ]]; then
+            gh pr comment "$PR_NUMBER" -R "$REPO" \
+              --body "⚠️ \`/docs-skip\` 需要跟上理由（如 \`/docs-skip 纯内部重构，对外文档无影响\`），本次未收尾，\`docs:followup\` 标签保留。"
+            echo "::error title=Missing skip reason::/docs-skip requires a reason"
+            exit 1
+          fi
           # 随机分隔符：DETAIL 来自评论正文，固定 EOF 会被正文里的 EOF 行提前截断，
           # 甚至被后续行覆盖 docs_pr_url（GitHub 官方建议）
           DELIM="detail_$(openssl rand -hex 16)"
@@ -70,22 +87,35 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Clear label and confirm on PR
+        id: clear
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.issue.number }}
           DOCS_PR_URL: ${{ steps.cmd.outputs.docs_pr_url }}
         run: |
-          # Tolerate only HTTP 404 (two quick /docs-done comments racing two
-          # runs; removing an absent label is a no-op outcome). Anything else
-          # must propagate.
-          if ! err="$(gh api -X DELETE \
+          # 只容忍 HTTP 404（label 已不在：并发 run 抢先删掉，或维护者手工摘除）。
+          # 其余错误——鉴权、限流、网络——必须抛出，否则会在 label 还挂着时发出
+          # 「标签已清除」。
+          #
+          # 404 意味着本次没有真正完成状态流转。飞书卡交给真正删掉 label 的那个 run
+          # 去发：一次收尾只留一条飞书卡，两个 run 各发一条就破了这条不变量，且两条
+          # 命令带的文档 PR 链接可能不同。但仍要在 PR 上回一条说明——评论不是飞书卡，
+          # 不影响上面的不变量，否则维护者只看到一个绿勾，不知道命令没生效。
+          if err="$(gh api -X DELETE \
             "repos/$REPO/issues/$PR_NUMBER/labels/docs:followup" \
             2>&1 >/dev/null)"; then
+            echo "cleared=true" >> "$GITHUB_OUTPUT"
+          else
             if ! grep -q "HTTP 404" <<<"$err"; then
               printf '%s\n' "$err" >&2
               exit 1
             fi
+            echo "cleared=false" >> "$GITHUB_OUTPUT"
+            gh pr comment "$PR_NUMBER" -R "$REPO" \
+              --body "ℹ️ \`docs:followup\` 标签已不在，本次未重复收尾。若要更正上一次的收尾结论，请先手工加回标签再重新评论。"
+            echo "::notice title=Already finished::docs:followup label is already gone; skipping confirmation and notification"
+            exit 0
           fi
           BODY="✅ 文档跟进已收尾，\`docs:followup\` 标签已清除。"
           if [[ -n "$DOCS_PR_URL" ]]; then
@@ -94,6 +124,7 @@ jobs:
           gh pr comment "$PR_NUMBER" -R "$REPO" --body "$BODY"
 
       - name: Feishu DM (callback outcome)
+        if: steps.clear.outputs.cleared == 'true'
         env:
           FEISHU_DOCS_DM_WEBHOOK: ${{ secrets.FEISHU_DOCS_DM_WEBHOOK }}
           FEISHU_DOCS_DM_SIGN_SECRET: ${{ secrets.FEISHU_DOCS_DM_SIGN_SECRET }}
@@ -104,8 +135,8 @@ jobs:
           DOCS_PR_URL: ${{ steps.cmd.outputs.docs_pr_url }}
           DETAIL: ${{ steps.cmd.outputs.detail }}
         run: |
-          STATUS=done
-          [[ "$VERDICT" == "skip" ]] && STATUS=skipped
+          STATUS="done"
+          [[ "$VERDICT" == "skip" ]] && STATUS="skipped"
           bash .github/scripts/docs-followup/feishu-dm.sh \
             --pr "$PR_NUMBER" \
             --status "$STATUS" \
