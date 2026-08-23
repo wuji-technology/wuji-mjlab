@@ -46,11 +46,10 @@ gh api -X POST "repos/$REPO/issues/$PR_NUMBER/labels" \
 BODY_FILE="$(mktemp)"
 trap 'rm -f "$BODY_FILE"' EXIT
 
-# The Feishu DM card is a heads-up only — the follow-up itself runs through
-# the local docs-followup skill.
-# This PR comment stays as the public anchor: the docs:followup label, the
-# "what to do" steps, and the /docs-done|/docs-skip handoff back to the
-# callback workflow.
+# 单卡模型（2026-08-20 拍板）：需要跟进的 PR 合入时不发飞书卡，这条评论 +
+# docs:followup label 就是挂账的唯一载体；维护者只在跟进完成后收到一张带文档
+# PR 链接的 done 卡作为记录。所以 /docs-done 必须跟文档 PR 链接，callback 缺链接会拒
+# 绝收尾。
 #
 # Variable references below expand to their literal values only; bash does not
 # re-scan substituted values, so a PR title containing backticks is inert.
@@ -62,7 +61,7 @@ cat > "$BODY_FILE" <<EOF
 ### 怎么做
 1. 在本仓库本地让 Claude Code 执行文档跟进（本地 docs-followup skill 承载完整流程，直接说「跟进本仓 PR #编号」即可）
 2. 需要改 → 直接改对外文档并提文档 PR，reviewer 设为 @${PR_AUTHOR}
-3. 收尾 → 在本 PR 评论 \`/docs-done\`（已提文档 PR）或 \`/docs-skip\`（判定无需改动），自动清除 \`docs:followup\` 标签
+3. 收尾 → 在本 PR 评论 \`/docs-done <文档 PR 链接>\`（已提文档 PR）或 \`/docs-skip <理由>\`（判定无需改动），自动清除 \`docs:followup\` 标签并发送跟进结果卡
 
 ---
 
