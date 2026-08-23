@@ -52,7 +52,7 @@ jobs:
           elif [[ "$COMMENT_BODY" =~ ^/docs-done([[:space:]]|:|—|$) ]]; then
             VERDICT="done"
             REST="${COMMENT_BODY#/docs-done}"
-            DOCS_PR_URL="$(grep -oE 'https://github\.com/[^/[:space:]]+/[^/[:space:]]+/pull/[0-9]+' <<<"$REST" | head -1 || true)"
+            DOCS_PR_URL="$(grep -oE 'https://github\.com/[A-Za-z0-9-]+/[A-Za-z0-9._-]+/pull/[0-9]+' <<<"$REST" | head -1 || true)"
             if [[ -z "$DOCS_PR_URL" ]]; then
               gh pr comment "$PR_NUMBER" -R "$REPO" \
                 --body "⚠️ \`/docs-done\` 需要跟上文档 PR 链接（如 \`/docs-done https://github.com/owner/repo/pull/N\`），本次未收尾，\`docs:followup\` 标签保留。"
