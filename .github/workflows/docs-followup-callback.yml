@@ -52,7 +52,20 @@ jobs:
           elif [[ "$COMMENT_BODY" =~ ^/docs-done([[:space:]]|:|—|$) ]]; then
             VERDICT="done"
             REST="${COMMENT_BODY#/docs-done}"
-            DOCS_PR_URL="$(grep -oE 'https://github\.com/[A-Za-z0-9-]+/[A-Za-z0-9._-]+/pull/[0-9]+' <<<"$REST" | head -1 || true)"
+            # 按空白切成整 token 再整体匹配：前缀匹配会把 /pull/123abc 截成 /pull/123，
+            # 清了 label 却记下一条错链接。编号后只允许两种东西：/ ? # 引出的子页、参数
+            # 或锚点（Files 页、评论锚点直接粘贴也能用），以及标点引出的紧贴备注
+            # （"…/pull/12，已补"）。记录时归一化成标准 PR 链接，紧贴备注留给结论行。
+            PR_LINK_RE='^(https://github\.com/[A-Za-z0-9-]+/[A-Za-z0-9._-]+/pull/[0-9]+)([/?#][^[:space:]]*)?([,.，。、)）>!！][^[:space:]]*)?$'
+            DOCS_PR_TOKEN=""
+            DOCS_PR_URL=""
+            while read -r tok; do
+              if [[ "$tok" =~ $PR_LINK_RE ]]; then
+                DOCS_PR_TOKEN="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
+                DOCS_PR_URL="${BASH_REMATCH[1]}"
+                break
+              fi
+            done < <(tr -s '[:space:]' '\n' <<<"$REST")
             if [[ -z "$DOCS_PR_URL" ]]; then
               gh pr comment "$PR_NUMBER" -R "$REPO" \
                 --body "⚠️ \`/docs-done\` 需要跟上文档 PR 链接（如 \`/docs-done https://github.com/owner/repo/pull/N\`），本次未收尾，\`docs:followup\` 标签保留。"
@@ -60,14 +73,14 @@ jobs:
               exit 1
             fi
             # 链接本身不进结论行，结论只留链接之外的备注
-            REST="${REST//"$DOCS_PR_URL"/}"
+            REST="${REST//"$DOCS_PR_TOKEN"/}"
           else
             gh pr comment "$PR_NUMBER" -R "$REPO" \
               --body "⚠️ 无法识别的命令，本次未收尾，\`docs:followup\` 标签保留。收尾请用 \`/docs-done <文档 PR 链接>\`，确认无需改文档请用 \`/docs-skip <理由>\`。"
             echo "::error title=Unrecognized command::expected /docs-done or /docs-skip followed by whitespace or end of line"
             exit 1
           fi
-          DETAIL="$(printf '%s' "$REST" | sed -E 's/^[[:space:]]*[-—:][[:space:]]*//; s/^[[:space:]]+//; s/[[:space:]]+$//')"
+          DETAIL="$(printf '%s' "$REST" | sed -E 's/^[[:space:]]*[-—:,，][[:space:]]*//; s/^[[:space:]]+//; s/[[:space:]]+$//')"
           # 理由是 skip 结论里唯一的人工判定依据，为空就等于无依据地清掉挂账。
           if [[ "$VERDICT" == "skip" && -z "$DETAIL" ]]; then
             gh pr comment "$PR_NUMBER" -R "$REPO" \
@@ -82,7 +95,7 @@ jobs:
             echo "verdict=$VERDICT"
             echo "docs_pr_url=$DOCS_PR_URL"
             echo "detail<<$DELIM"
-            echo "$DETAIL"
+            printf '%s\n' "$DETAIL"
             echo "$DELIM"
           } >> "$GITHUB_OUTPUT"
 
@@ -123,8 +136,10 @@ jobs:
           fi
           gh pr comment "$PR_NUMBER" -R "$REPO" --body "$BODY"
 
+      # 上一步 cleared=true 写在 PR 评论之前：评论失败时 label 已删、后续命令进 404
+      # 分支不再发卡，默认 success() 会把这张唯一的飞书卡一起丢掉，所以只看 cleared。
       - name: Feishu DM (callback outcome)
-        if: steps.clear.outputs.cleared == 'true'
+        if: ${{ !cancelled() && steps.clear.outputs.cleared == 'true' }}
         env:
           FEISHU_DOCS_DM_WEBHOOK: ${{ secrets.FEISHU_DOCS_DM_WEBHOOK }}
           FEISHU_DOCS_DM_SIGN_SECRET: ${{ secrets.FEISHU_DOCS_DM_SIGN_SECRET }}
