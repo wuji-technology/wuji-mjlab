@@ -56,7 +56,8 @@ jobs:
             # 清了 label 却记下一条错链接。编号后只允许两种东西：/ ? # 引出的子页、参数
             # 或锚点（Files 页、评论锚点直接粘贴也能用），以及标点引出的紧贴备注
             # （"…/pull/12，已补"）。记录时归一化成标准 PR 链接，紧贴备注留给结论行。
-            PR_LINK_RE='^(https://github\.com/[A-Za-z0-9-]+/[A-Za-z0-9._-]+/pull/[0-9]+)([/?#][^[:space:]]*)?([,.，。、)）>!！][^[:space:]]*)?$'
+            # 子页/锚点段不吃标点，否则 "…/pull/12/files，已补" 的备注会被当成链接一起删掉
+            PR_LINK_RE='^(https://github\.com/[A-Za-z0-9-]+/[A-Za-z0-9._-]+/pull/[0-9]+)([/?#][^[:space:],，。、)）>!！]*)?([,.，。、)）>!！][^[:space:]]*)?$'
             DOCS_PR_TOKEN=""
             DOCS_PR_URL=""
             while read -r tok; do
@@ -80,7 +81,8 @@ jobs:
             echo "::error title=Unrecognized command::expected /docs-done or /docs-skip followed by whitespace or end of line"
             exit 1
           fi
-          DETAIL="$(printf '%s' "$REST" | sed -E 's/^[[:space:]]*[-—:,，][[:space:]]*//; s/^[[:space:]]+//; s/[[:space:]]+$//')"
+          # 前导分隔符集合与 PR_LINK_RE 允许的紧贴标点保持一致
+          DETAIL="$(printf '%s' "$REST" | sed -E 's/^[[:space:]]*[-—:,.，。、)）>!！]+[[:space:]]*//; s/^[[:space:]]+//; s/[[:space:]]+$//')"
           # 理由是 skip 结论里唯一的人工判定依据，为空就等于无依据地清掉挂账。
           if [[ "$VERDICT" == "skip" && -z "$DETAIL" ]]; then
             gh pr comment "$PR_NUMBER" -R "$REPO" \
