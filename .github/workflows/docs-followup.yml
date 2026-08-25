@@ -10,12 +10,9 @@ name: Post-Merge Docs Follow-up
 # After a PR is merged into main, this workflow checks whether the change
 # touches the public surface (defined in .github/docs-sync-public-packages.txt)
 # and the PR title is not a pure-internal prefix. If both pass, it tags the
-# merged PR with `docs:followup` and posts the follow-up comment.
-#
-# 单卡模型（2026-08-20 拍板）：需要跟进的 PR 合入时**不发**飞书卡——label + PR
-# 评论是挂账的唯一载体；维护者只在跟进完成后收到一张带文档 PR 链接的 done 卡
-# （callback workflow 发出），作为该单跟进完成的记录。不需要跟进的 PR 合入时仍直接发灰卡（notify-skip）。
-# The maintainer runs Claude locally, then comments /docs-done <docs-pr-url> |
+# merged PR with `docs:followup`, posts the follow-up comment, and sends a
+# heads-up Feishu card without an embedded prompt. The maintainer runs Claude
+# locally, then comments /docs-done <docs-pr-url> |
 # /docs-skip on the PR (callback workflow clears the label). This workflow never calls an AI API or edits docs itself.
 #
 # Requirements (repo-level):
@@ -256,9 +253,24 @@ jobs:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: bash .github/scripts/docs-followup/docs-followup-comment.sh
 
-      # The label + PR comment above is the whole deliverable for this path.
-      # 单卡模型：这里不再发「需要跟进」飞书卡，维护者只在收尾时收到带文档 PR
-      # 链接的 done 卡（见 docs-followup-callback.yml）。
+      # The label + PR comment above is the real deliverable. The Feishu DM is
+      # a heads-up card without an embedded prompt. A Feishu outage must not
+      # fail the job, because the PR comment was already posted successfully.
+      - name: Feishu DM (docs follow-up needed)
+        continue-on-error: true
+        env:
+          FEISHU_DOCS_DM_WEBHOOK: ${{ secrets.FEISHU_DOCS_DM_WEBHOOK }}
+          FEISHU_DOCS_DM_SIGN_SECRET: ${{ secrets.FEISHU_DOCS_DM_SIGN_SECRET }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          bash .github/scripts/docs-followup/feishu-dm.sh \
+            --pr "$PR_NUMBER" \
+            --status followup_needed \
+            --pr-title "$PR_TITLE" \
+            --pr-author "$PR_AUTHOR" \
+          || echo "::error title=Feishu DM failed::followup_needed card not delivered for PR #$PR_NUMBER"
 
   failure-fallback:
     needs: [filter, prepare]

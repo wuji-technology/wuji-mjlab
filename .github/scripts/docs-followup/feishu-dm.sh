@@ -11,11 +11,8 @@
 # Required flags:
 #   --pr <number>              The code PR number that triggered this run
 #   --status <kind>            One of:
-#                                internal_change | failed
+#                                internal_change | followup_needed | failed
 #                                done | skipped     (callback outcomes)
-#                              单卡模型（2026-08-20 拍板）：需要跟进的 PR 合入时
-#                              不发卡，只在跟进完成后发一张 done 卡（必带文档
-#                              PR 链接）；不需要跟进的 PR 合入时直接发灰卡。
 #
 # Optional flags (used to enrich the card depending on status):
 #   --repo <owner/name>        Repository slug; defaults to $GITHUB_REPOSITORY.
@@ -95,11 +92,16 @@ case "$STATUS" in
     HEADER_TEMPLATE="grey"
     BODY_LINE="判定本次改动不需要文档跟进。若觉得判断有误，可手动追加文档更新。"
     ;;
+  followup_needed)
+    HEADER_TITLE="📝 Docs Follow-up · ${REPO_NAME} #${PR_NUMBER}"
+    HEADER_TEMPLATE="blue"
+    BODY_LINE="影响对外公开面，需要文档跟进。请在本地用 Claude 分析并提交文档跟进 PR。"
+    ;;
   done)
     HEADER_TITLE="✅ Docs Follow-up · ${REPO_NAME} #${PR_NUMBER}"
     HEADER_TEMPLATE="green"
     BODY_LINE="文档跟进已完成，请查看文档 PR。"
-    # 单卡模型下 done 卡是维护者收到的唯一跟进记录，必须带文档 PR 链接。
+    # done 卡必须带文档 PR 链接。
     if [[ -z "$DOCS_PR_URL" ]]; then
       echo "--docs-pr-url required when --status done" >&2
       exit 2
