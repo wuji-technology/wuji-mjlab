@@ -1,19 +1,22 @@
-# Deploy hardware + runtime configuration.
-#
-# Model-intrinsic params (action_scale, ema_alpha, warmup_time_s, ctrl_dt,
-# history_len, control_mode) are NOT here — they come from the ONNX sidecar
-# JSON (onnx/<stem>.json) at runtime via ONNXPolicy.config and are applied
-# by make_real_hand_env_cfg(policy_config=...) overrides. This file holds
-# only deploy-specific hardware/runtime defaults.
+serial_numbers:
+  right: ""   # e.g. WHxxxxxxxxxxxxx; empty → auto-connect the single hand on the bus
 
-hardware:
-  effort_limit_nm: 0.5       # per-joint torque cap (WujiHandDriver default)
-  lowpass_cutoff_hz: 3.0     # SDK LowPass filter cutoff (lower = smoother)
+control:
+  # Scales training-time per-joint kp; kd scales by sqrt(pd_scale) to keep
+  # the training-time damping ratio. CLI gain/scale flags override this.
+  pd_scale: 2.0
+  effort_limit_a: 1.0
+  # servo_hz only sets the interpolated streaming rate; the policy still decides at ctrl_dt.
+  servo_hz: 200.0
 
+# ZMQ ports (must match across the 3 processes).
 zmq:
-  goal_port: 5556    # play_real publish/subscribe goal
-  cube_port: 5555    # cube_world_observer publishes cube pose
+  cube_port: 5555
+  goal_port: 5556
+  joint_port: 5557
 
-# Joint limits: NOT stored here. RealHandEnv._clamp_to_joint_limits reads
-# them from scene["robot"].data.soft_joint_pos_limits (mjcf-derived single
-# source of truth).
+goal:
+  success_threshold_rad: 0.4
+  hold_s: 1
+  timeout_s: 15.0
+  rest_s: 3.0

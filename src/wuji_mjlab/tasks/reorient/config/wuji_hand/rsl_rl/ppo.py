@@ -2,6 +2,8 @@
 # Copyright 2026 Wuji Technology Co., Ltd.
 """RL configuration for the Wuji Hand Reorient task."""
 
+import os
+
 from mjlab.rl import (
   RslRlModelCfg,
   RslRlOnPolicyRunnerCfg,
@@ -13,6 +15,7 @@ def wuji_hand_reorient_ppo_runner_cfg(
   run_name: str = "Reorient",
   max_iterations: int = 5000,
 ) -> RslRlOnPolicyRunnerCfg:
+  """Build the PPO runner cfg for the Wuji Hand 1 reorient task."""
   return RslRlOnPolicyRunnerCfg(
     obs_groups={"actor": ("policy",), "critic": ("critic",)},
     actor=RslRlModelCfg(
@@ -20,9 +23,10 @@ def wuji_hand_reorient_ppo_runner_cfg(
       activation="elu",
       obs_normalization=True,
       distribution_cfg={
-        "class_name": "SoftplusGaussianDistribution",
+        "class_name": "rsl_rl.modules:HeteroscedasticGaussianDistribution",
         "init_std": 0.5,
-        "min_std": 0.2,
+        "std_range": (0.2, 50.0),
+        "std_type": "scalar",
       },
     ),
     critic=RslRlModelCfg(
@@ -45,7 +49,7 @@ def wuji_hand_reorient_ppo_runner_cfg(
     ),
     experiment_name="wuji_reorient",
     logger="wandb",
-    wandb_project="wuji_reorient_mjlab",
+    wandb_project=os.environ.get("WANDB_PROJECT", ""),
     run_name=run_name,
     save_interval=50,
     num_steps_per_env=40,

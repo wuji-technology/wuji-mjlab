@@ -2,11 +2,16 @@
 # Copyright 2026 Wuji Technology Co., Ltd.
 """Common in-hand object config helpers."""
 
+from __future__ import annotations
+
 from functools import partial
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import mujoco
-from mjlab.entity import EntityCfg
+
+if TYPE_CHECKING:
+  from mjlab.entity import EntityCfg
 
 _ASSET_DIR = Path(__file__).resolve().parent
 
@@ -16,24 +21,10 @@ assert INHAND_OBJECT_XML.exists(), f"Missing in-hand object XML: {INHAND_OBJECT_
 # Baseline cube — reflects values inside cube.xml. If cube.xml changes, update here.
 BASELINE_EDGE_M = 0.054
 BASELINE_MASS_KG = 0.120
-CUBE_DENSITY = BASELINE_MASS_KG / (BASELINE_EDGE_M**3)  # ≈ 683 kg/m^3
-
-INHAND_OBJECT_INIT_STATE = EntityCfg.InitialStateCfg(
-  pos=(-0.1404, 0.0042, 0.52),
-  rot=(0.3894, -0.3796, -0.5980, -0.5888),
-  lin_vel=(0.0, 0.0, 0.0),
-  ang_vel=(0.0, 0.0, 0.0),
-)
+CUBE_DENSITY = BASELINE_MASS_KG / (BASELINE_EDGE_M**3)  # ≈ 762.08 kg/m^3
 
 
 def _get_spec(edge_m: float | None = None) -> mujoco.MjSpec:
-  """Load the cube spec; optionally scale to a different edge length.
-
-  When ``edge_m`` is None, return the spec exactly as the XML defines it
-  (54 mm baseline). When set, mutate the named ``cube`` geom's box size +
-  mass and the ``cube_mesh`` mesh scale so that the cube becomes a uniform
-  same-density solid with the requested edge length.
-  """
   spec = mujoco.MjSpec.from_file(str(INHAND_OBJECT_XML))
   if edge_m is None:
     return spec
@@ -47,16 +38,26 @@ def _get_spec(edge_m: float | None = None) -> mujoco.MjSpec:
   cube_geom.size = [half, half, half]
   cube_geom.mass = mass
 
-  cube_mesh = next((m for m in spec.meshes if m.name == "cube_mesh"), None)
-  if cube_mesh is None:
-    raise ValueError(f"{INHAND_OBJECT_XML} must contain a mesh named 'cube_mesh'")
-  cube_mesh.scale = [half, half, half]
+  # Keep the visual ArUco box in lockstep with the collision box, otherwise a
+  # non-baseline cube renders (and its goal ghost, derived from this geom) at
+  # the wrong 54 mm size.
+  cube_visual = next((g for g in spec.geoms if g.name == "cube_visual"), None)
+  if cube_visual is None:
+    raise ValueError(f"{INHAND_OBJECT_XML} must contain a geom named 'cube_visual'")
+  cube_visual.size = [half, half, half]
 
   return spec
 
 
 def get_inhand_object_cfg(edge_m: float | None = None) -> EntityCfg:
+  from mjlab.entity import EntityCfg
+
   return EntityCfg(
-    init_state=INHAND_OBJECT_INIT_STATE,
+    init_state=EntityCfg.InitialStateCfg(
+      pos=(-0.1404, 0.0042, 0.52),
+      rot=(0.3894, -0.3796, -0.5980, -0.5888),
+      lin_vel=(0.0, 0.0, 0.0),
+      ang_vel=(0.0, 0.0, 0.0),
+    ),
     spec_fn=partial(_get_spec, edge_m),
   )

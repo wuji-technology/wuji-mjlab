@@ -4,24 +4,37 @@ from __future__ import annotations
 
 import torch
 
-from wuji_mjlab.tasks.reorient.mdp.event_utils import (
-  get_linear_progress,
-  resolve_env_ids,
-)
+from wuji_mjlab.tasks.reorient.mdp._env_utils import resolve_env_ids
 from wuji_mjlab.utils.curriculum import get_curriculum_value  # noqa: F401 -- re-export
 
-# Backwards-compatible re-exports for external callers that historically
-# imported these from ``curriculums``. New code should import them from
-# ``mdp.event_utils`` directly.
 __all__ = [
   "adaptive_episode_curriculum",
-  "friction_curriculum",
-  "geom_size_curriculum",
   "get_curriculum_value",
   "get_linear_progress",
   "reorient_success_curriculum",
   "resolve_env_ids",
 ]
+
+
+def get_linear_progress(
+  env,
+  warmup_frac: float = 0.05,
+  rampup_frac: float = 0.60,
+) -> float:
+  if not hasattr(env, "max_common_steps"):
+    raise ValueError(
+      "Set env.max_common_steps from the training runner's "
+      "max_iterations * num_steps_per_env before using the time ramp."
+    )
+  effective_total_steps = max(float(env.max_common_steps), 1.0)
+  step = float(getattr(env, "common_step_counter", 0))
+  warmup = float(warmup_frac) * effective_total_steps
+  rampup = float(rampup_frac) * effective_total_steps
+  if step <= warmup:
+    return 0.0
+  if step >= rampup:
+    return 1.0
+  return float((step - warmup) / max(rampup - warmup, 1.0))
 
 
 def reorient_success_curriculum(
@@ -31,7 +44,6 @@ def reorient_success_curriculum(
   count_threshold: int = 3,
   delta_per_loop: float = 0.01,
 ) -> dict[str, float]:
-  """Adaptive curriculum based on goal reach count at episode reset."""
   if not hasattr(env, "_reorient_success_curriculum"):
     env._reorient_success_curriculum = 0.0
 
@@ -71,7 +83,6 @@ def adaptive_episode_curriculum(
   min_scale: float = 0.05,
   drop_gamma: float = 1.0,
 ) -> dict[str, float]:
-  """Adaptive curriculum based on episode survival length."""
   if not hasattr(env, "_adaptive_episode_curriculum"):
     env._adaptive_episode_curriculum = float(min_scale)
 
@@ -108,48 +119,4 @@ def adaptive_episode_curriculum(
     "early_drop_frac": float(early_drop.float().mean().item()),
     "target_steps": float(target_steps),
     "delta": delta,
-  }
-
-
-def friction_curriculum(
-  env,
-  env_ids,
-  friction_start: float = 1.0,
-  friction_end: float = 0.5,
-  warmup_frac: float = 0.05,
-  rampup_frac: float = 0.60,
-  total_steps: int | None = None,
-) -> dict[str, float]:
-  """Friction scale curriculum: high friction (easy) -> low friction (hard)."""
-  del env_ids
-  progress = get_linear_progress(env, warmup_frac, rampup_frac, total_steps=total_steps)
-  scale = float(friction_start) + progress * (
-    float(friction_end) - float(friction_start)
-  )
-  env._friction_curriculum = scale
-  return {
-    "value": float(scale),
-    "progress": float(progress),
-  }
-
-
-def geom_size_curriculum(
-  env,
-  env_ids,
-  geom_size_start: float = 1.0,
-  geom_size_end: float = 1.15,
-  warmup_frac: float = 0.05,
-  rampup_frac: float = 0.60,
-  total_steps: int | None = None,
-) -> dict[str, float]:
-  """Collision geom size curriculum: nominal -> enlarged (simulate glove/soft body)."""
-  del env_ids
-  progress = get_linear_progress(env, warmup_frac, rampup_frac, total_steps=total_steps)
-  scale = float(geom_size_start) + progress * (
-    float(geom_size_end) - float(geom_size_start)
-  )
-  env._geom_size_curriculum = scale
-  return {
-    "value": float(scale),
-    "progress": float(progress),
   }

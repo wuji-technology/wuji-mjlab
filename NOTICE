@@ -6,7 +6,6 @@ This product includes software developed by:
 - rsl-rl (BSD-3-Clause)
   Copyright (c) 2021-2026, ETH Zurich and NVIDIA CORPORATION
   https://github.com/leggedrobotics/rsl_rl
-  Vendored at src/wuji_rl_libs/rsl_rl/
 
 - mjlab (Apache-2.0)
   https://github.com/mujocolab/mjlab
@@ -19,6 +18,7 @@ This product includes software developed by:
 
 - pupil-apriltags (BSD-2-Clause, dynamically linked, used in deploy/)
   https://github.com/pupil-labs/apriltags
-  Copyright (c) Pupil Labs
+  Copyright (c) 2013-2015, The Regents of The University of Michigan
+  Copyright (c) 2015-2018, Matt Zucker
 
 This NOTICE file is provided per the requirements of Apache License 2.0 §4(d).

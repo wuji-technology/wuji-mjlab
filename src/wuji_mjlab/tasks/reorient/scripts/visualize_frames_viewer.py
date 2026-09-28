@@ -1,30 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Wuji Technology Co., Ltd.
-"""Interactive MuJoCo viewer showing palm-frame axes across wrist orientations.
-
-Builds the ``WujiHand_Reorient`` env with a few parallel envs, overrides each
-env's wrist (robot root) quaternion to a different orientation so the four
-hands sit side-by-side in the scene, then opens the Viser viewer with a
-debug-vis overlay that draws:
-
-  * the world-frame axes at the world origin (RGB triad, length 0.20 m),
-  * the **palm-frame axes** at every env's palm body (solid RGB triad,
-    length 0.10 m),
-  * a black world-frame **gravity** arrow from each palm pointing world -Z
-    (length 0.15 m),
-  * a tiny gray sphere at ``palm + 0.05 * (-Zp)`` showing where gravity sits
-    in palm-local coordinates -- it overlays the gravity arrow tail only when
-    palm-Z is parallel to world-Z.
-
-Each env's wrist orientation is fixed at startup; a zero-action policy keeps
-the simulation quiet. Spin / zoom the viewer to inspect 3D placement.
-
-Usage::
-
-  pixi run python -m wuji_mjlab.tasks.reorient.scripts.visualize_frames_viewer
-  pixi run python -m wuji_mjlab.tasks.reorient.scripts.visualize_frames_viewer \\
-      --num-envs 8 --viewer viser
-"""
+"""Interactive MuJoCo viewer showing palm-frame axes across wrist orientations."""
 
 from __future__ import annotations
 
@@ -46,7 +22,7 @@ from mjlab.utils.lab_api.math import (
   quat_from_angle_axis,
 )
 from mjlab.viewer import NativeMujocoViewer, ViserPlayViewer
-from wuji_mjlab.tasks.reorient.mdp.observations import _palm_pose_to_tag_pose
+from wuji_mjlab.tasks.reorient.mdp.observations import tag_pose_w
 from wuji_mjlab.tasks.reorient.reorient_constants import (
   REORIENT_CUBE_INIT_POS,
   REORIENT_ROBOT_ROOT_POS,
@@ -109,7 +85,6 @@ def build_wrist_cases(num_envs: int) -> list[WristCase]:
   ]
   if num_envs <= len(pool):
     return pool[:num_envs]
-  # Fall back to repeating; not really useful but keep things robust.
   cases = list(pool)
   while len(cases) < num_envs:
     cases.append(pool[(len(cases)) % len(pool)])
@@ -121,34 +96,17 @@ def make_palm_axes_visualizer(
   case_names: list[str],
   base_update_visualizers: Callable[..., None] | None,
 ):
-  """Return a function that draws per-env world frame, gravity, and palm frame.
-
-  The returned callable matches ``ManagerBasedRlEnv.update_visualizers``: it
-  receives a ``DebugVisualizer`` and draws the overlay. It also delegates to
-  ``base_update_visualizers`` first so any task-specific debug viz (e.g. the
-  goal ghost mesh) keeps working.
-
-  At each env_origin we draw:
-    * a world-frame RGB triad (length 0.20m, alpha 0.5),
-    * a black gravity arrow pointing world -Z (length 0.15m),
-    * a thin gray cylinder from env_origin straight up to that env's palm
-      body (visualises the palm offset from the per-env world reference).
-
-  At each palm body (per env) we draw:
-    * a solid RGB triad (length 0.10m) — the wrist orientation.
-
-  At each tag pose (per env, computed via the same rigid transform the obs
-  functions use) we draw:
-    * a CMY triad (cyan = X_tag, magenta = Y_tag, yellow = Z_tag,
-      length 0.10m) — the frame in which policy obs are computed. Distinct
-      from RGB so it cannot be confused with the world or palm triads.
-  """
+  """Return a function that draws per-env world frame, gravity, and palm frame."""
   scene = env.scene
   robot = scene["robot"]
   palm_ids, _ = robot.find_bodies(".*_palm_link")
   if not palm_ids:
     raise RuntimeError("could not find palm body via pattern '.*_palm_link'")
   palm_body_id = int(palm_ids[0])
+
+  tag_ids, _ = robot.find_sites(".*_wrist_tag")
+  if not tag_ids:
+    raise RuntimeError("could not find tag site via pattern '.*_wrist_tag'")
 
   env_origins_np = scene.env_origins.detach().cpu().numpy().astype(np.float32)
   world_R = np.eye(3, dtype=np.float32)
@@ -158,23 +116,19 @@ def make_palm_axes_visualizer(
   world_axis_len = 0.20
   gravity_len = 0.15
 
-  # CMY triad colors for the tag frame (cyan / magenta / yellow), distinct from
-  # the RGB triads used for world (dashed) and palm (solid).
   tag_axis_colors = ((0.0, 0.85, 0.85), (0.85, 0.0, 0.85), (0.9, 0.85, 0.0))
 
   def update(visualizer) -> None:
     if base_update_visualizers is not None:
       base_update_visualizers(visualizer)
 
-    # Palm world poses for every env.
     palm_pose = robot.data.body_link_pose_w[:, palm_body_id, :]
     palm_pos_t = palm_pose[:, 0:3]
     palm_quat_t = palm_pose[:, 3:7]
     palm_pos = palm_pos_t.detach().cpu().numpy()
-    palm_R = matrix_from_quat(palm_quat_t).detach().cpu().numpy()  # (N, 3, 3)
+    palm_R = matrix_from_quat(palm_quat_t).detach().cpu().numpy()
 
-    # Tag world poses derived from the same rigid transform the obs use.
-    tag_pos_t, tag_quat_t = _palm_pose_to_tag_pose(palm_pos_t, palm_quat_t)
+    tag_pos_t, tag_quat_t = tag_pose_w(robot, tag_ids)
     tag_pos = tag_pos_t.detach().cpu().numpy()
     tag_R = matrix_from_quat(tag_quat_t).detach().cpu().numpy()
 
@@ -185,7 +139,6 @@ def make_palm_axes_visualizer(
       tag_p = tag_pos[env_idx].astype(np.float32)
       tag_M = tag_R[env_idx].astype(np.float32)
 
-      # Per-env world-frame axes (dashed-style: thin + 0.5 alpha).
       visualizer.add_frame(
         position=origin,
         rotation_matrix=world_R,
@@ -195,7 +148,6 @@ def make_palm_axes_visualizer(
         label=f"world_env{env_idx}",
       )
 
-      # Per-env gravity arrow anchored at env_origin, pointing world -Z.
       grav_end = origin + np.array([0.0, 0.0, -gravity_len], dtype=np.float32)
       visualizer.add_arrow(
         start=origin,
@@ -205,9 +157,6 @@ def make_palm_axes_visualizer(
         label=f"gravity_env{env_idx}",
       )
 
-      # Thin gray connector from env_origin straight up to the palm body so
-      # the palm offset (~0.5m in z) is visible relative to the per-env world
-      # reference, not just floating in space.
       visualizer.add_cylinder(
         start=origin,
         end=np.array([origin[0], origin[1], pos[2]], dtype=np.float32),
@@ -225,8 +174,6 @@ def make_palm_axes_visualizer(
         label=f"palm_env{env_idx}",
       )
 
-      # Tag-frame triad at the actual tag world pose (CMY) — this is the
-      # frame the policy obs are computed in.
       visualizer.add_frame(
         position=tag_p,
         rotation_matrix=tag_M,
@@ -237,8 +184,6 @@ def make_palm_axes_visualizer(
         label=f"tag_env{env_idx}",
       )
 
-      # A small label-cue "pin" along +Zp so the user can see palm-up axis
-      # direction at a glance even from below.
       zp_end = pos + 0.06 * R[:, 2]
       visualizer.add_sphere(
         center=zp_end,
@@ -254,19 +199,14 @@ def override_wrist_orientations(
   env: ManagerBasedRlEnv,
   cases: list[WristCase],
 ) -> None:
-  """Set each env's robot wrist pose to its target wrist quaternion.
-
-  The reorient robot is fixed-base + mocap, so root pose is set via
-  ``write_mocap_pose_to_sim``. Position is kept at the per-env scene origin
-  plus the configured root pos offset; only the orientation differs across envs.
-  """
+  """Set each env's robot wrist pose to its target wrist quaternion."""
   scene = env.scene
   robot = scene["robot"]
   num_envs = scene.num_envs
 
   env_origins = scene.env_origins.to(env.device)
   base_pos = torch.tensor(REORIENT_ROBOT_ROOT_POS, device=env.device).unsqueeze(0)
-  positions = env_origins + base_pos  # (N, 3)
+  positions = env_origins + base_pos
   quats = torch.tensor(
     [c.quat_wxyz for c in cases], dtype=torch.float32, device=env.device
   )
@@ -280,9 +220,8 @@ def override_wrist_orientations(
     zero_vel = torch.zeros((num_envs, 6), device=env.device)
     robot.write_root_link_velocity_to_sim(zero_vel, env_ids=env_ids)
 
-  # Park the cube near each palm so the scene is recognisable. The cube has a
-  # free joint; without an active policy it will fall under gravity, but at
-  # least the initial frame shows the scene clearly.
+  # The cube has a freejoint and no policy holds it, so it stays caged only in
+  # the first frame.
   if "object" in scene.entities:
     cube = scene["object"]
     cube_offset = torch.tensor(REORIENT_CUBE_INIT_POS, device=env.device).unsqueeze(0)
@@ -319,13 +258,11 @@ def run_visualization(
 
   env = ManagerBasedRlEnv(cfg=env_cfg, device=device)
 
-  # Inject `_debug_vis_enabled` on visualizable reward terms that don't have it.
-  # The Viser viewer reads this attribute when wiring the per-reward debug-vis
-  # GUI; some class-based terms in this repo (e.g. CageEscapePenalty) don't
-  # set it, which would crash setup. Local workaround scoped to this viewer.
+  # Viser's per-reward debug-vis GUI reads ``_debug_vis_enabled``; class-based
+  # terms (e.g. CageEscapePenalty) don't set it and crash viewer setup.
   for _, func in env.reward_manager.get_visualizable_terms():
     if not hasattr(func, "_debug_vis_enabled"):
-      func._debug_vis_enabled = False  # leave their viz off; ours is separate
+      func._debug_vis_enabled = False
 
   cases = build_wrist_cases(num_envs)
   print("\n[viz] wrist orientations per env:")
@@ -336,20 +273,15 @@ def run_visualization(
     )
   print()
 
-  # First reset to drive normal init (joints, contacts, ...) then override.
   env.reset()
   override_wrist_orientations(env, cases)
-  # Forward to commit pose into sim derived state without taking a real step.
   env.sim.forward()
 
-  # Wrap the user-facing update_visualizers so our palm axes are drawn after
-  # any task-defined debug viz (e.g. the reorient goal ghost mesh).
   base_visualizer = getattr(env, "update_visualizers", None)
   env.update_visualizers = make_palm_axes_visualizer(  # type: ignore[method-assign]
     env, [c.name for c in cases], base_visualizer
   )
 
-  # Wrap for the viewer protocol; clip_actions=None to keep things simple.
   wrapped_env = RslRlVecEnvWrapper(env, clip_actions=None)
 
   action_shape: tuple[int, ...] = wrapped_env.unwrapped.action_space.shape

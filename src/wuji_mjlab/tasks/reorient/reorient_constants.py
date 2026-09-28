@@ -1,52 +1,31 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Wuji Technology Co., Ltd.
-"""Reorient task-specific initial pose + frame constants.
+"""Reorient constants for Wuji Hand 1.
 
-``right_mjlab.xml`` has the palm at origin with no rotation (fingers point
-along +Z). The wrist tag is mounted such that the palm frame and tag frame
-differ by a clean **R_y(-90°)** rotation. We replicate this -90° here via
-the robot root quaternion so sim's "palm-up" pose matches the real geometry.
+The root rotation below reproduces the mount's ``R_y(-90°)`` relationship.
 """
-
-import math
 
 from mjlab.entity import EntityCfg
 
-# ---------------------------------------------------------------------------
-# Robot root pose — palm rotated -90° around Y so palm faces up
-# ---------------------------------------------------------------------------
-# Quaternion for R_y(-90°): (cos(-45°), 0, sin(-45°), 0) ≈ (0.7071, 0, -0.7071, 0)
+REORIENT_PALM_NORMAL_AXIS = 0
+
+
 REORIENT_ROBOT_ROOT_POS = (0.0, 0.0, 0.5)
 REORIENT_ROBOT_ROOT_ROT = (0.70710678, 0.0, -0.70710678, 0.0)
 
-# ---------------------------------------------------------------------------
-# Cube initial pose — in palm-up frame, above the fingertip cage
-# ---------------------------------------------------------------------------
-# Cube-relative-to-palm offset ≈ (0.060, 0.004, 0.075) in palm body local
-# frame, transformed through R_y(-90°) into world coordinates so the cube
-# sits above the fingertip cage in the palm-up world pose.
+# Wuji Hand 1's reorient tag belongs to the task rig, not the shared robot XML.
+REORIENT_WRIST_TAG_POS = (0.0262, 0.0, -0.0563)
+REORIENT_WRIST_TAG_ROT = (0.70710678, 0.0, 0.70710678, 0.0)
+
+
 REORIENT_CUBE_INIT_POS = (-0.0967, 0.0100, 0.5599)
-REORIENT_CUBE_INIT_ROT = (1.0, 0.0, 0.0, 0.0)  # identity; training randomises
+REORIENT_CUBE_INIT_ROT = (1.0, 0.0, 0.0, 0.0)
 
 REORIENT_CUBE_INIT_STATE = EntityCfg.InitialStateCfg(
   pos=REORIENT_CUBE_INIT_POS,
   rot=REORIENT_CUBE_INIT_ROT,
 )
 
-# Tag (wrist marker) ↔ palm_link rigid transform
-#     palm_in_tag pos = (-0.0563, 0, -0.0262), quat (wxyz) = R_y(-90°)
-#     tag_in_palm pos = ( 0.0262, 0, -0.0563), quat (wxyz) = R_y(+90°)
-TAG_IN_PALM_POS = (0.0262, 0.0, -0.0563)
-TAG_IN_PALM_QUAT_WXYZ = (
-  math.cos(math.radians(45.0)),
-  0.0,
-  math.sin(math.radians(45.0)),
-  0.0,
-)
-
-# ---------------------------------------------------------------------------
-# Hand joint angles (active keyframe)
-# ---------------------------------------------------------------------------
 REORIENT_JOINT_POS: dict[str, float] = {
   ".*_finger1_joint1": 0.8,
   ".*_finger1_joint2": -0.0215,

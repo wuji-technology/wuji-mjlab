@@ -1,9 +1,4 @@
-# Pre-commit hooks: install once with `pre-commit install`, then runs on every git commit.
-# To run manually against the full tree: `pre-commit run --all-files`.
-# To bump hook versions: `pre-commit autoupdate` (review changes before commit).
-
-# Exclude vendored third-party code from all hooks.
-exclude: ^(src/wuji_rl_libs/|pixi\.lock$)
+exclude: ^pixi\.lock$
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -11,11 +6,14 @@ repos:
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
+        exclude: ^src/wuji_mjlab/assets/robots/wuji_hand2/mjcf/right_mjlab\.xml$
       - id: check-yaml
         args: ['--unsafe']  # deploy/reorient/config/cube_calibration.yaml uses !!python/tuple tags
       - id: check-toml
       - id: check-added-large-files
         args: ['--maxkb=500']
+        # Preserve the official mount mesh and task documentation GIFs.
+        exclude: ^src/wuji_mjlab/assets/robots/wuji_hand2/meshes/right/r_mount\.STL$|^src/wuji_mjlab/tasks/(reorient|pen_spin)/docs/assets/.*\.gif$
       - id: check-merge-conflict
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -34,6 +32,6 @@ repos:
     hooks:
       - id: codespell
         args:
-          - '--skip=*.lock,*.svg,*.gif,docs/**/*.svg'
+          - '--skip=*.lock,*.svg,*.gif,**/docs/**/*.svg'
           # whis: matplotlib boxplot kwarg; unparseable: valid English variant
           - '--ignore-words-list=whis,unparseable'

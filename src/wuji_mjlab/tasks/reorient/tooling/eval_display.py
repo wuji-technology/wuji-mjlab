@@ -1,10 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Wuji Technology Co., Ltd.
-"""Real-time terminal display for reorient eval progress.
-
-Extracted from ``eval_core.py`` so the eval core stays focused on the
-control loop and result aggregation.
-"""
+"""Real-time terminal display for reorient eval progress."""
 
 from __future__ import annotations
 
@@ -100,7 +96,6 @@ class EvalDisplay:
     )
     lines.append("")
 
-    # Contact info
     lines.append("-" * 70)
     if contact_info and contact_info["contacts"]:
       cl = contact_info["contacts"]
@@ -129,13 +124,11 @@ class EvalDisplay:
         lines.append(f"    ... and {len(cl) - 5} more contacts")
     else:
       lines.append("  Contacts: none")
-    # Pad to fixed height
     contact_section_height = 10
     while len(lines) < 10 + contact_section_height:
       lines.append("")
     lines.append("-" * 70)
 
-    # Cube motion
     if cube_cvel is not None:
       angvel = cube_cvel[:3]
       linvel = cube_cvel[3:]
@@ -151,7 +144,6 @@ class EvalDisplay:
       )
       lines.append("-" * 70)
 
-    # Joint torques
     if actuator_force is not None and len(actuator_force) >= 20:
       lines.append("  Joint Torques (Nm):")
       lines.append(

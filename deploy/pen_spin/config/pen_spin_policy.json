@@ -1,0 +1,11 @@
+{
+  "task": "WujiHand2_PenSpin",
+  "fixed_wrist": true,
+  "ctrl_dt": 0.02,
+  "action_scale": 0.5,
+  "action_residual_clip": [-0.6, 0.6],
+  "action_ema_alpha": 0.5,
+  "obs_dim": 155,
+  "actor_hidden_dims": [1024, 512, 256],
+  "action_dim": 20
+}

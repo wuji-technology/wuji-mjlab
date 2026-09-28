@@ -1,14 +1,7 @@
 <mujoco>
-  <!-- Shared cube definition for Wuji Hand reorientation task
-       54mm edge cube (size=0.027), mass=120g
-       Paths are relative to objects/cube/ directory -->
 
   <compiler assetdir=".."/>
 
-  <!-- Contact parameter design:
-       Hand:  priority=1, solref=[0.02, 1.5], solimp=[0.9, 0.95, 0.001]
-       Cube:  priority=0 (lower), solref/solimp ignored when contacting hand
-       -> Hand's contact params always used (priority mechanism) -->
   <default>
     <default class="cube">
       <geom friction=".3" conaffinity="2" condim="3" priority="0"
@@ -29,18 +22,24 @@
     <material name="graycube" texture="graycube"/>
     <texture name="dexcube" type="2d" file="textures/dex_cube.png"/>
     <material name="dexcube" texture="dexcube"/>
+    <!-- Cube slot order [right,left,up,down,front,back] = axes [+X,-X,+Y,-Y,+Z,-Z]
+         = [purple, blue, red, cyan, green, black]. Filenames do NOT match the
+         physical color layout — do not "fix" by filename. -->
+    <texture name="arucocube" type="cube"
+      fileright="textures/RIGHT_purple.png" fileleft="textures/LEFT_blue.png"
+      fileup="textures/TOP_red.png" filedown="textures/BOTTOM_cyan.png"
+      filefront="textures/FRONT_green.png" fileback="textures/BACK_black.png"/>
+    <material name="arucocube" texture="arucocube"/>
     <mesh name="cube_mesh" file="meshes/dex_cube.obj" scale="0.027 0.027 0.027"/>
   </asset>
 
   <worldbody>
-    <!-- SYNC REQUIRED: Update all 3 locations together!
-         1. HERE: cube body pos/quat (for viewer Reset)
-         2. scene.xml: grasp_ref site pos (for position reward)
-         3. scene.xml: keyframe qpos last 7 values (for h-key reset)
-         Use scripts/tools/pose_editor.py to calibrate. -->
     <body name="cube" pos="-0.1404 0.0042 0.52" quat="0.3894 -0.3796 -0.5980 -0.5888" childclass="cube">
       <freejoint name="cube_freejoint"/>
-      <geom type="mesh" mesh="cube_mesh" material="dexcube" contype="0" conaffinity="0" density="0" group="2"/>
+      <!-- Visual is a BOX (not the dex_cube mesh): a type="cube" texture maps by
+           face direction and only renders correctly on a box; the dex_cube.obj
+           mesh's 2D UVs scramble it. -->
+      <geom name="cube_visual" type="box" size=".027 .027 .027" material="arucocube" contype="0" conaffinity="0" density="0" group="2"/>
       <geom name="cube" type="box" size=".027 .027 .027" mass=".120" group="3"/>
       <site name="cube_center" pos="0 0 0" group="4"/>
     </body>

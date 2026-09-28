@@ -6,30 +6,24 @@ import math
 
 import torch
 from mjlab.entity import Entity
+from mjlab.managers.manager_base import ManagerTermBase
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.sensor import ContactSensor
 from mjlab.utils.lab_api.math import quat_error_magnitude
 
-from wuji_mjlab.tasks.reorient.mdp.event_impl.state import get_reorient_event_state
+from wuji_mjlab.tasks.reorient.mdp.runtime_state import (
+  get_fingertip_contact_binding,
+  get_reorient_runtime_state,
+)
 from wuji_mjlab.utils.reward_decorators import curriculum_scaled
-
-# ---------------------------------------------------------------------------
-# Finger self-collision
-# ---------------------------------------------------------------------------
 
 
 def finger_self_collision_penalty(
   env,
   sensor_cfg: SceneEntityCfg = SceneEntityCfg("finger_collision"),
 ) -> torch.Tensor:
-  """Count active finger-finger contacts. Pure binary — no force scaling."""
   sensor = env.scene[sensor_cfg.name]
   return torch.sum((sensor.data.found > 0).float(), dim=-1)
-
-
-# ---------------------------------------------------------------------------
-# Tolerance kernels (reorient-specific)
-# ---------------------------------------------------------------------------
 
 
 def tolerance(
@@ -38,12 +32,6 @@ def tolerance(
   margin: float,
   value_at_margin: float = 0.1,
 ) -> torch.Tensor:
-  """Gaussian tolerance kernel.
-
-  Returns 1.0 inside *bounds*, decays as a Gaussian outside.
-  *sigma* is derived so that the return value equals *value_at_margin*
-  at exactly *margin* distance from the nearest bound.
-  """
   lower, upper = bounds
   in_bounds = (value >= lower) & (value <= upper)
   if margin <= 0.0:
@@ -62,10 +50,6 @@ def tolerance_linear(
   bounds: tuple[float, float],
   margin: float,
 ) -> torch.Tensor:
-  """Linear tolerance kernel (MJX-aligned).
-
-  Returns 1.0 inside *bounds*, linearly decays to 0 at *margin* distance.
-  """
   lower, upper = bounds
   in_bounds = (value >= lower) & (value <= upper)
   if margin <= 0.0:
@@ -84,9 +68,6 @@ _DEFAULT_ROBOT_CFG = SceneEntityCfg("robot")
 _DEFAULT_OBJECT_CFG = SceneEntityCfg("object")
 
 
-# --- Dense rewards (× step_dt) ---
-
-
 @curriculum_scaled
 def orientation_alignment(
   env,
@@ -97,7 +78,6 @@ def orientation_alignment(
   curriculum_term: str = "",
   curriculum_min: float = 0.0,
 ) -> torch.Tensor:
-  """MJX-aligned orientation reward using a linear tolerance kernel."""
   del curriculum_term, curriculum_min
   obj: Entity = env.scene[object_cfg.name]
   goal_quat = env.command_manager.get_term(command_name).goal_quat
@@ -112,7 +92,6 @@ def hand_pose_penalty(
   curriculum_term: str = "",
   curriculum_min: float = 0.0,
 ) -> torch.Tensor:
-  """L2 deviation from default joint positions."""
   del curriculum_term, curriculum_min
   robot: Entity = env.scene[asset_cfg.name]
   joint_pos = robot.data.joint_pos[:, asset_cfg.joint_ids]
@@ -126,7 +105,6 @@ def action_rate_combined(
   curriculum_term: str = "",
   curriculum_min: float = 0.0,
 ) -> torch.Tensor:
-  """First-order + second-order penalty on raw policy actions."""
   del curriculum_term, curriculum_min
   action = env.action_manager.action
   prev = env.action_manager.prev_action
@@ -147,10 +125,6 @@ def joint_vel_penalty(
   curriculum_term: str = "",
   curriculum_min: float = 0.0,
 ) -> torch.Tensor:
-  """Normalized squared joint velocity penalty.
-
-  Matches MJX: sum((vel / (max_velocity - tolerance))^2).
-  """
   del curriculum_term, curriculum_min
   robot: Entity = env.scene[asset_cfg.name]
   denom = max(max_velocity - vel_tolerance, 1e-6)
@@ -165,7 +139,6 @@ def energy_penalty(
   curriculum_term: str = "",
   curriculum_min: float = 0.0,
 ) -> torch.Tensor:
-  """Energy: sum(|vel| * |torque|)."""
   del curriculum_term, curriculum_min
   robot: Entity = env.scene[asset_cfg.name]
   torques = robot.data.actuator_force[:, asset_cfg.actuator_ids]
@@ -181,7 +154,6 @@ def torque_penalty(
   curriculum_term: str = "",
   curriculum_min: float = 0.0,
 ) -> torch.Tensor:
-  """Normalized squared torque: sum((torque / torque_max)^2)."""
   del curriculum_term, curriculum_min
   robot: Entity = env.scene[asset_cfg.name]
   torques = robot.data.actuator_force[:, asset_cfg.actuator_ids]
@@ -202,15 +174,11 @@ def joint_acc_penalty(
   curriculum_term: str = "",
   curriculum_min: float = 0.0,
 ) -> torch.Tensor:
-  """Joint acceleration penalty: Σ((vel_t - vel_{t-1}) / denom)².
-
-  Penalizes joint jerk/vibration. Requires reset_joint_acc_cache event
-  to clear shared previous-joint-velocity state on episode reset.
-  """
+  """Requires reset_joint_acc_cache to clear previous joint-velocity state on episode reset."""
   del curriculum_term, curriculum_min
   robot: Entity = env.scene[asset_cfg.name]
   vel = robot.data.joint_vel[:, asset_cfg.joint_ids]
-  state = get_reorient_event_state(env)
+  state = get_reorient_runtime_state(env)
 
   if state.prev_joint_vel is None:
     state.prev_joint_vel = vel.clone()
@@ -226,65 +194,41 @@ def palm_detach_reward(
   sensor_cfg: SceneEntityCfg = SceneEntityCfg("palm_object_found"),
   distal_sensor_cfg: SceneEntityCfg = SceneEntityCfg("distal_finger_object_found"),
 ) -> torch.Tensor:
-  """Dense reward for the cube being held by the distal fingers only.
-
-  Returns 1.0 per env iff BOTH:
-    - palm_object_found.found == 0 (cube is not touching palm or proximal
-      finger links link1/link2), AND
-    - distal_finger_object_found.found > 0 (cube is in contact with the
-      distal phalanges link3/link4 of at least one finger).
-
-  Returns 0.0 if either condition fails — i.e., the cube is rolling on the
-  palm/proximal links, or the cube is floating away with no fingertip
-  contact at all. Encourages the policy to lift the cube fully into the
-  fingertips.
-
-  Uses the binary ``found`` field rather than a force threshold so it
-  remains correct for very light cubes (the 54 mm cube weighs only
-  ~1.18 N, below typical force thresholds).
-  """
   palm_sensor: ContactSensor = env.scene[sensor_cfg.name]
   distal_sensor: ContactSensor = env.scene[distal_sensor_cfg.name]
   if palm_sensor.data.found is None or distal_sensor.data.found is None:
     return torch.zeros(env.num_envs, device=env.device)
-  palm_found = palm_sensor.data.found[:, 0]
-  distal_found = distal_sensor.data.found[:, 0]
-  return ((palm_found == 0) & (distal_found > 0)).float()
+  palm_found = (palm_sensor.data.found > 0).any(dim=-1)
+  distal_found = (distal_sensor.data.found > 0).any(dim=-1)
+  return (~palm_found & distal_found).float()
 
 
-def tip_slide_penalty(
-  env,
-  robot_cfg: SceneEntityCfg = _DEFAULT_ROBOT_CFG,
-  object_cfg: SceneEntityCfg = _DEFAULT_OBJECT_CFG,
-  sensor_cfg: SceneEntityCfg = SceneEntityCfg("tip_object_contact"),
-  contact_threshold: float = 0.0,
-) -> torch.Tensor:
-  """MJX-aligned tip slide penalty without curriculum scaling.
+class TipSlidePenalty(ManagerTermBase):
+  def __init__(self, cfg, env):
+    super().__init__(env)
+    robot_cfg = cfg.params.get("robot_cfg", _DEFAULT_ROBOT_CFG)
+    object_cfg = cfg.params.get("object_cfg", _DEFAULT_OBJECT_CFG)
+    sensor_cfg = cfg.params.get("sensor_cfg", SceneEntityCfg("tip_object_contact"))
+    self._robot = env.scene[robot_cfg.name]
+    self._object = env.scene[object_cfg.name]
+    self._sensor = env.scene[sensor_cfg.name]
+    self._threshold = cfg.params.get("contact_threshold", 0.0)
+    self._binding = get_fingertip_contact_binding(env, robot_cfg, sensor_cfg)
 
-  Prioritizes binary contact detection via sensor ``found`` when available,
-  matching the MJX task's gating behavior more closely.
-  """
-  robot: Entity = env.scene[robot_cfg.name]
-  obj: Entity = env.scene[object_cfg.name]
-  sensor: ContactSensor = env.scene[sensor_cfg.name]
-
-  tip_lin_vel = robot.data.site_lin_vel_w[:, robot_cfg.site_ids, :]
-  obj_lin_vel = obj.data.root_link_lin_vel_w.unsqueeze(1)
-  rel_vel = torch.norm(tip_lin_vel - obj_lin_vel, dim=-1)
-
-  if sensor.data.found is not None:
-    in_contact = (sensor.data.found > contact_threshold).float()
-  elif sensor.data.force is not None:
-    in_contact = (torch.norm(sensor.data.force, dim=-1) > contact_threshold).float()
-  else:
-    return torch.zeros(env.num_envs, device=env.device)
-
-  if in_contact.shape[1] != rel_vel.shape[1]:
-    n = min(in_contact.shape[1], rel_vel.shape[1])
-    in_contact = in_contact[:, :n]
-    rel_vel = rel_vel[:, :n]
-
-  return torch.sum(rel_vel * in_contact, dim=-1)
+  def __call__(self, env, **_params) -> torch.Tensor:
+    tip_lin_vel = self._robot.data.site_lin_vel_w[:, self._binding.site_ids, :]
+    obj_lin_vel = self._object.data.root_link_lin_vel_w.unsqueeze(1)
+    rel_vel = torch.norm(tip_lin_vel - obj_lin_vel, dim=-1)
+    data = self._sensor.data
+    if data.found is not None:
+      in_contact = self._binding.contact_mask(data.found > self._threshold)
+    elif data.force is not None:
+      in_contact = self._binding.contact_mask(
+        torch.norm(data.force, dim=-1) > self._threshold
+      )
+    else:
+      return torch.zeros(env.num_envs, device=env.device)
+    return torch.sum(rel_vel * in_contact, dim=-1)
 
 
 def hold_escalation_value(
@@ -292,7 +236,6 @@ def hold_escalation_value(
   within_threshold: torch.Tensor,
   timer: torch.Tensor,
 ) -> torch.Tensor:
-  """Pure function: timer-scaled reward, active only in window & threshold."""
   return (in_window & within_threshold).float() * timer.float()
 
 
@@ -302,13 +245,8 @@ def hold_escalation(
 ) -> torch.Tensor:
   """Time-escalating dense reward during SUCCESS_WINDOW.
 
-  Replaces sparse success (+100) and flat hold_bonus (+1.0/step).
-  Returns timer value (1..20) when in SUCCESS_WINDOW and within
-  threshold, zero otherwise. With weight=11.4 and dt=0.05,
-  total per cycle ≈ 120 (matching old sparse + hold_bonus).
-
-  Uses reward_window_timer (pre-reset snapshot) so the final step
-  before goal switch is not lost.
+  Uses ``reward_hold_counter_snapshot`` (captured before the goal-switch reset)
+  so the final step before goal switch is not lost.
   """
   command = env.command_manager.get_term(command_name)
   return hold_escalation_value(
@@ -322,5 +260,38 @@ def drop_penalty_sparse(
   env,
   term_name: str = "cube_drop",
 ) -> torch.Tensor:
-  """Penalty when the referenced termination term triggers."""
   return env.termination_manager.get_term(term_name).float()
+
+
+class ActionHighFreqPenalty(ManagerTermBase):
+  def __init__(self, cfg, env):
+    super().__init__(env)
+    self._c1: torch.Tensor | None = None
+    self._c2: torch.Tensor | None = None
+    self._age: torch.Tensor | None = None
+
+  def reset(self, env_ids=None) -> None:
+    if self._c1 is None:
+      return
+    if env_ids is None:
+      self._c1.zero_()
+      self._c2.zero_()
+      self._age.zero_()
+    else:
+      self._c1[env_ids] = 0.0
+      self._c2[env_ids] = 0.0
+      self._age[env_ids] = 0
+
+  def __call__(self, env) -> torch.Tensor:
+    c = env.action_manager.get_term("joint_pos").processed_action
+    if self._c1 is None:
+      self._c1 = torch.zeros_like(c)
+      self._c2 = torch.zeros_like(c)
+      self._age = torch.zeros(c.shape[0], dtype=torch.long, device=c.device)
+    jerk = c - 2.0 * self._c1 + self._c2
+    penalty = torch.sum(torch.square(jerk), dim=-1)
+    penalty = torch.where(self._age >= 2, penalty, torch.zeros_like(penalty))
+    self._c2 = self._c1
+    self._c1 = c.clone()
+    self._age = self._age + 1
+    return penalty

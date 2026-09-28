@@ -2,15 +2,26 @@
 # Copyright 2026 Wuji Technology Co., Ltd.
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import torch
 from mjlab.envs.mdp.actions.actions import JointPositionAction, JointPositionActionCfg
 
 
-class JointPositionOffsetEMAAction(JointPositionAction):
-  """Joint position action: default_pos + action * scale, with EMA smoothing and warmup hold."""
+def warmup_steps(warmup_time_s: float, step_dt: float) -> int:
+  """Control steps to hold at the default pose, as an exact integer count.
 
+  The bound must not be tested by comparing ``step_index * step_dt`` against
+  ``warmup_time_s`` in floating point.
+  Mirrored in ``deploy/reorient/wuji_reorient_deploy/obs_builder.py``; a test pins them equal.
+  """
+  if step_dt <= 0.0:
+    raise ValueError(f"step_dt must be positive, got {step_dt}")
+  return max(0, math.ceil(warmup_time_s / step_dt - 1e-9))
+
+
+class JointPositionOffsetEMAAction(JointPositionAction):
   cfg: "JointPositionOffsetEMAActionCfg"
 
   def __init__(self, cfg: "JointPositionOffsetEMAActionCfg", env):
@@ -19,6 +30,7 @@ class JointPositionOffsetEMAAction(JointPositionAction):
     self._action_scale = cfg.action_scale
     self._ema_alpha = cfg.ema_alpha
     self._warmup_time_s = cfg.warmup_time_s
+    self._warmup_steps = warmup_steps(cfg.warmup_time_s, env.step_dt)
 
     self._default_joint_pos = self._entity.data.default_joint_pos[
       :, self._target_ids
@@ -29,6 +41,7 @@ class JointPositionOffsetEMAAction(JointPositionAction):
     self._upper_limits = soft_limits[..., 1]
 
     self._prev_target = self._default_joint_pos.clone()
+    self._processed_actions.copy_(self._default_joint_pos)
 
   def process_actions(self, actions: torch.Tensor):
     self._raw_actions[:] = actions
@@ -41,9 +54,7 @@ class JointPositionOffsetEMAAction(JointPositionAction):
       self._ema_alpha * raw_target + (1.0 - self._ema_alpha) * self._prev_target
     )
 
-    in_warmup = (
-      self._env.episode_length_buf * self._env.step_dt < self._warmup_time_s
-    ).unsqueeze(-1)
+    in_warmup = (self._env.episode_length_buf < self._warmup_steps).unsqueeze(-1)
     self._processed_actions = torch.where(in_warmup, self._default_joint_pos, smoothed)
     self._prev_target = self._processed_actions.clone()
 
@@ -54,6 +65,7 @@ class JointPositionOffsetEMAAction(JointPositionAction):
   def reset(self, env_ids: torch.Tensor) -> None:
     super().reset(env_ids)
     self._prev_target[env_ids] = self._default_joint_pos[env_ids]
+    self._processed_actions[env_ids] = self._default_joint_pos[env_ids]
 
 
 @dataclass(kw_only=True)

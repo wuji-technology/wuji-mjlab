@@ -1,98 +1,52 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Wuji Technology Co., Ltd.
-"""
-Camera Calibration Script - calibrate camera using 11x8 chessboard (high-quality auto-capture)
-
-Features:
-- Covers different image regions (center, four edges)
-- Different distances (near, middle, far)
-- Different angles (frontal, tilted)
-- Strict capture conditions
-
-How to use:
-1. Run this script
-2. Follow the on-screen prompts to move the chessboard to the required position/angle
-3. Capture is automatic once conditions are met
-4. After completing all conditions, press 's' to calibrate
-5. Press 'q' to quit
-"""
+"""Camera Calibration Script - calibrate camera using 11x8 chessboard (high-quality auto-capture)."""
 import sys
-import os
-from pathlib import Path
-import numpy as np
-import cv2
-from ctypes import *
 import time
+from ctypes import *
+from pathlib import Path
+
+import cv2
+import numpy as np
+from wuji_reorient_deploy.camera_config import load_camera_config, setup_camera_roi
+from wuji_reorient_deploy.mvs_sdk import ensure_mvs_importable
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DEPLOY_ROOT = SCRIPT_DIR.parent  # deploy/reorient/
+DEPLOY_ROOT = SCRIPT_DIR.parent
 CONFIG_DIR = DEPLOY_ROOT / "config"
-DEPLOY_REPO_ROOT = DEPLOY_ROOT.parent.parent  # worktree root
-# Make deploy.reorient.* imports work when script is run directly.
-sys.path.insert(0, str(DEPLOY_REPO_ROOT))
 
-# MvImport: Hikvision MVS SDK Python bindings.
-# System-level dependency (NOT vendored in this repo). Default install path is
-# /opt/MVS; override with MVS_PYTHON_PATH env var if installed elsewhere.
-_mvs_python_path = os.environ.get("MVS_PYTHON_PATH", "/opt/MVS/Samples/64/Python")
-if not os.path.isdir(os.path.join(_mvs_python_path, "MvImport")):
-    raise RuntimeError(
-        f"MvImport not found at {_mvs_python_path}/MvImport. "
-        "Install Hikvision MVS SDK (https://www.hikrobotics.com) or set "
-        "MVS_PYTHON_PATH env var to the dir containing MvImport/."
-    )
-sys.path.insert(0, _mvs_python_path)
 
-os.environ["OPENCV_LOG_LEVEL"] = "ERROR"
+ensure_mvs_importable()
 
-from MvImport.MvCameraControl_class import *
+from MvImport.MvCameraControl_class import *  # noqa: E402
 
-# Camera config loader
-from deploy.reorient.lib.camera_config import (
-    load_camera_config, get_roi, setup_camera_roi
-)
-
-# Chessboard parameters
 CHESSBOARD_SIZE = (11, 8)  # Inner corner count (cols, rows)
-SQUARE_SIZE = 0.020  # Square side length (meters) — 2cm
+SQUARE_SIZE = 0.020  # Square side length (meters)
 
-# Capture parameters
 CAPTURE_INTERVAL = 0.8  # Minimum capture interval (seconds)
-MIN_STABLE_FRAMES = 5   # Required stable frame count
-MIN_QUALITY_SCORE = 60  # Minimum quality score required
+MIN_STABLE_FRAMES = 5
+MIN_QUALITY_SCORE = 60
 
 
 def get_chessboard_metrics(corners, img_shape, objp, K_approx=None):
-    """
-    Compute various metrics for the chessboard.
-
-    Uses PnP to compute the actual tilt angle (degrees), which is more intuitive
-    and stable than an edge-length ratio.
-    """
+    """Compute chessboard center, size and PnP tilt metrics."""
     h, w = img_shape[:2]
 
-    # Center position (normalized 0-1)
     center = corners.mean(axis=0).flatten()
     center_norm = (center[0] / w, center[1] / h)
 
-    # Size (diagonal length, used to estimate distance)
     min_pt = corners.min(axis=0).flatten()
     max_pt = corners.max(axis=0).flatten()
     diagonal = np.sqrt((max_pt[0] - min_pt[0])**2 + (max_pt[1] - min_pt[1])**2)
-    size_ratio = diagonal / np.sqrt(w**2 + h**2)  # Relative to image diagonal
+    size_ratio = diagonal / np.sqrt(w**2 + h**2)
 
-    # Use PnP to compute tilt angle (more accurate, more intuitive)
-    # Use approximate intrinsics (a reasonable estimate when no calibration is available)
     if K_approx is None:
-        # Approximate intrinsics for a short-focal-length lens at close range (~53 deg HFOV).
-        # Used for the PnP solve that estimates chessboard tilt; does not affect actual
-        # calibration result, only the tilt_angle in the HUD, so a wide-ish midrange is fine.
+        # fx = w is a ~53 deg HFOV guess; it only feeds the HUD tilt readout, not calibrateCamera.
         fx = fy = w * 1.0
         cx, cy = w / 2, h / 2
         K_approx = np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]], dtype=np.float32)
 
-    # Use solvePnP to estimate chessboard pose
     success, rvec, tvec = cv2.solvePnP(
         objp, corners.reshape(-1, 2), K_approx, None,
         flags=cv2.SOLVEPNP_ITERATIVE
@@ -100,34 +54,28 @@ def get_chessboard_metrics(corners, img_shape, objp, K_approx=None):
 
     tilt_angle = 0.0
     if success:
-        # Convert rotation vector to rotation matrix
         R, _ = cv2.Rodrigues(rvec)
-        # Chessboard normal in chessboard frame is [0, 0, 1].
-        # After transforming to camera frame: R @ [0, 0, 1] = third column of R.
+        # Board normal is [0, 0, 1] in board frame, so in camera frame it is R's third column.
         normal_in_camera = R[:, 2]
-        # Camera optical axis is [0, 0, 1]
-        # Compute the angle between them
-        cos_angle = abs(normal_in_camera[2])  # Absolute value, treat front/back the same
+        # Camera optical axis is [0, 0, 1], so component 2 is already the cosine.
+        cos_angle = abs(normal_in_camera[2])
         cos_angle = np.clip(cos_angle, -1.0, 1.0)
         tilt_angle = np.degrees(np.arccos(cos_angle))
 
     return {
         'center': center_norm,
         'size': size_ratio,
-        'tilt': tilt_angle  # Now angle (degrees) rather than ratio
+        'tilt': tilt_angle
     }
 
 
 def calculate_image_quality(gray, corners):
     """Compute image quality score (0-100)."""
-    # 1. Sharpness — use Laplacian variance
-    # Only compute over the chessboard region
     x_min = int(corners[:, :, 0].min())
     x_max = int(corners[:, :, 0].max())
     y_min = int(corners[:, :, 1].min())
     y_max = int(corners[:, :, 1].max())
 
-    # Extend the boundary a bit
     pad = 20
     x_min = max(0, x_min - pad)
     x_max = min(gray.shape[1], x_max + pad)
@@ -138,16 +86,11 @@ def calculate_image_quality(gray, corners):
     laplacian = cv2.Laplacian(roi, cv2.CV_64F)
     sharpness = laplacian.var()
 
-    # Normalized sharpness score (looser thresholds)
-    # 200+ excellent, 100-200 good, <100 blurry
     sharpness_score = min(100, sharpness / 5)
 
-    # 2. Contrast — use standard deviation
     contrast = roi.std()
-    # std of 40+ scores full marks (looser)
     contrast_score = min(100, contrast / 0.4)
 
-    # 3. Corner quality — gradient magnitude around each corner
     corner_quality = 0
     for pt in corners.reshape(-1, 2):
         x, y = int(pt[0]), int(pt[1])
@@ -157,10 +100,8 @@ def calculate_image_quality(gray, corners):
             gy = cv2.Sobel(patch, cv2.CV_32F, 0, 1, ksize=3)
             corner_quality += np.sqrt(gx**2 + gy**2).mean()
     corner_quality /= len(corners.reshape(-1, 2))
-    # Looser corner score
     corner_score = min(100, corner_quality / 0.3)
 
-    # Overall score (weighted average)
     total_score = sharpness_score * 0.5 + contrast_score * 0.25 + corner_score * 0.25
 
     return {
@@ -175,16 +116,11 @@ def check_region(center, region):
     """Check whether the center point lies in the specified region."""
     cx, cy = center
     regions = {
-        # Center 60%
         'center': (0.20, 0.80, 0.20, 0.80),
-        # Four "edge-biased" regions: the board center must enter the corresponding
-        # half, and the board edges should not spill out. Tailored for a large board
-        # at short working distance: a strict-corner (quadrant) constraint is
-        # unreachable, so we use looser position constraints like "left half" while
-        # still providing positional diversity.
-        'left':   (0.00, 0.40, 0.20, 0.80),  # Left middle band
+        # Edge-biased halves rather than quadrants: a large board at short range cannot fit a corner.
+        'left':   (0.00, 0.40, 0.20, 0.80),
         'right':  (0.60, 1.00, 0.20, 0.80),
-        'top':    (0.20, 0.80, 0.00, 0.40),  # Top middle band
+        'top':    (0.20, 0.80, 0.00, 0.40),
         'bottom': (0.20, 0.80, 0.60, 1.00),
     }
     x1, x2, y1, y2 = regions[region]
@@ -202,7 +138,6 @@ def main():
     print(f"Square size: {SQUARE_SIZE*1000:.1f}mm")
     print("=" * 60)
 
-    # Initialize camera
     print("\nInitializing camera...")
     MvCamera.MV_CC_Initialize()
     deviceList = MV_CC_DEVICE_INFO_LIST()
@@ -221,13 +156,11 @@ def main():
     cam.MV_CC_SetFloatValue("Gain", 8.0)
     cam.MV_CC_SetEnumValue("PixelFormat", PixelType_Gvsp_BayerGB8)
 
-    # Load ROI from config
     _cam_cfg = load_camera_config()
     width, height = setup_camera_roi(cam, _cam_cfg)
     cam.MV_CC_StartGrabbing()
     print(f"Camera ready! Resolution: {width}x{height} (ROI mode)")
 
-    # Prepare calibration data
     objp = np.zeros((CHESSBOARD_SIZE[0] * CHESSBOARD_SIZE[1], 3), np.float32)
     objp[:, :2] = np.mgrid[0:CHESSBOARD_SIZE[0], 0:CHESSBOARD_SIZE[1]].T.reshape(-1, 2)
     objp *= SQUARE_SIZE
@@ -236,46 +169,30 @@ def main():
     img_points = []
     captured_images = []
 
-    # Capture task definitions — use angles (degrees) rather than ratios for clarity.
-    # (region, distance range, angle range (degrees), description)
-    # Working distance ~20cm (cube reorient task calibration). Board 11x8 inner
-    # corners x 20mm squares -> diagonal ~244mm. size_ratio = board diagonal /
-    # image diagonal. Each bin tolerates fx uncertainty in 800-1300, with a wide
-    # span per bin.
-    SIZE_NEAR = (0.70, 0.95)   # ~15cm  (board nearly fills the frame)
-    SIZE_MID  = (0.50, 0.75)   # ~20cm  (target working distance)
-    SIZE_FAR  = (0.35, 0.55)   # ~25-30cm
-    SIZE_ANY  = (0.35, 0.95)   # any distance
+    # size_ratio = board diagonal (11x8 inner corners x 20mm ~= 244mm) / image diagonal.
+    SIZE_NEAR = (0.70, 0.95)
+    SIZE_MID  = (0.50, 0.75)
+    SIZE_FAR  = (0.35, 0.55)
+    SIZE_ANY  = (0.35, 0.95)
 
-    # Angle threshold notes:
-    # - Frontal: 0-20 deg (for principal point and distortion center)
-    # - Tilted: 20-50 deg (for focal length; too steep and corner detection becomes
-    #   unreliable)
-    # Task list is tuned for "large board + short working distance (~20cm)":
-    # board occupies a large portion of the frame, strict-corner is unreachable,
-    # so we use 4 edge-biased regions + center + lots of tilt variation. Tilt
-    # diversity is the main constraint on fx/fy/distortion, compensating for the
-    # limited image-position coverage.
+    # Frontal 0-20 deg pins the principal point and distortion center.
+    # Tilted 20-50 deg pins focal length; steeper breaks corner detection.
     tasks = [
-        # === Group 1: center + multiple tilts (focal length + distortion center) ===
         ('center', SIZE_MID, (0, 15),  'center-frontal'),
         ('center', SIZE_MID, (15, 30), 'center-slight tilt'),
         ('center', SIZE_MID, (30, 45), 'center-large tilt 1'),
         ('center', SIZE_MID, (30, 45), 'center-large tilt 2 (change direction)'),
 
-        # === Group 2: 4 edge-biased regions (image-position diversity) ===
         ('left',   SIZE_MID, (0, 25),  'left-biased frontal'),
         ('right',  SIZE_MID, (0, 25),  'right-biased frontal'),
         ('top',    SIZE_MID, (0, 25),  'top-biased frontal'),
         ('bottom', SIZE_MID, (0, 25),  'bottom-biased frontal'),
 
-        # === Group 3: 4 edge-biased regions + tilt (combined constraints) ===
         ('left',   SIZE_MID, (15, 40), 'left-biased tilted'),
         ('right',  SIZE_MID, (15, 40), 'right-biased tilted'),
         ('top',    SIZE_MID, (15, 40), 'top-biased tilted'),
         ('bottom', SIZE_MID, (15, 40), 'bottom-biased tilted'),
 
-        # === Group 4: distance variation (distortion constraints) ===
         ('center', SIZE_NEAR, (0, 25),  'center-near'),
         ('center', SIZE_FAR,  (0, 25),  'center-far'),
     ]
@@ -283,7 +200,6 @@ def main():
     task_completed = [False] * len(tasks)
     current_task = 0
 
-    # State
     last_capture_time = 0
     stable_count = 0
     last_corners = None
@@ -312,17 +228,7 @@ def main():
         gray = cv2.cvtColor(bayer, cv2.COLOR_BayerGB2GRAY)
         color = cv2.cvtColor(bayer, cv2.COLOR_BayerGB2BGR)
 
-        # Detect chessboard
-        # 1) First try findChessboardCornersSB (sector-based, OpenCV 4+): much more
-        #    robust to noise, low contrast, and shadows; includes subpixel refinement;
-        #    well-suited to large boards (11x8).
-        # 2) On failure, fall back to the standard algorithm, dropping CALIB_CB_FAST_CHECK
-        #    — that flag rejects slightly noisy images outright and is a common cause
-        #    of "unstable detection".
-        # 3) SB occasionally returns found=True with corner count < N*M when the board
-        #    is near the image edge (partial detection). Downstream solvePnP will
-        #    assert/crash on this, so we validate the corner count here and treat an
-        #    incomplete detection as not-found so the fallback path takes over.
+        # findChessboardCornersSB can return found=True on a partial board; solvePnP then asserts.
         n_expected = CHESSBOARD_SIZE[0] * CHESSBOARD_SIZE[1]
 
         def _good(found_, corners_):
@@ -344,6 +250,7 @@ def main():
             if not _good(found, corners):
                 found, corners = False, None
         if not found:
+            # CALIB_CB_FAST_CHECK is omitted here: it rejects slightly noisy frames outright.
             found, corners = cv2.findChessboardCorners(
                 gray, CHESSBOARD_SIZE,
                 flags=cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_NORMALIZE_IMAGE,
@@ -364,16 +271,14 @@ def main():
             metrics = get_chessboard_metrics(corners_refined, gray.shape, objp)
             quality = calculate_image_quality(gray, corners_refined)
 
-            # Check stability
             if last_corners is not None:
                 movement = np.mean(np.abs(corners_refined - last_corners))
-                if movement < 2.0:  # pixels
+                if movement < 2.0:
                     stable_count += 1
                 else:
                     stable_count = 0
             last_corners = corners_refined.copy()
 
-            # Check whether the current task matches
             if current_task < len(tasks):
                 region, size_range, tilt_range, desc = tasks[current_task]
 
@@ -386,7 +291,6 @@ def main():
 
                 task_match = region_ok and size_ok and tilt_ok
 
-                # Auto-capture — must meet quality requirements
                 if task_match and stable_ok and time_ok and quality_ok:
                     obj_points.append(objp)
                     img_points.append(corners_refined)
@@ -396,26 +300,20 @@ def main():
                     stable_count = 0
                     print(f"  [OK] Captured #{len(img_points)}: {desc} (quality: {quality['total']:.0f})")
 
-                    # Move to the next incomplete task
                     while current_task < len(tasks) and task_completed[current_task]:
                         current_task += 1
 
-        # Draw the UI
-        # Current task prompt
         if current_task < len(tasks):
             region, size_range, tilt_range, desc = tasks[current_task]
             cv2.putText(display, f"Task {current_task+1}/{len(tasks)}: {desc}",
                        (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
 
-            # Condition indicators
             if metrics and quality:
-                # Region
                 region_ok = check_region(metrics['center'], region)
                 color_ok = (0, 255, 0) if region_ok else (0, 0, 255)
                 cv2.putText(display, f"Region: {'OK' if region_ok else 'Move to ' + region}",
                            (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color_ok, 1)
 
-                # Distance
                 size_ok = size_range[0] <= metrics['size'] <= size_range[1]
                 if metrics['size'] < size_range[0]:
                     size_hint = "Move CLOSER"
@@ -427,7 +325,6 @@ def main():
                 cv2.putText(display, f"Distance: {size_hint} ({metrics['size']:.2f})",
                            (10, 85), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color_ok, 1)
 
-                # Tilt (now displayed in degrees)
                 tilt_ok = tilt_range[0] <= metrics['tilt'] <= tilt_range[1]
                 if metrics['tilt'] < tilt_range[0]:
                     tilt_hint = "Tilt MORE"
@@ -439,24 +336,21 @@ def main():
                 cv2.putText(display, f"Tilt: {tilt_hint} ({metrics['tilt']:.0f} deg, need {tilt_range[0]:.0f}-{tilt_range[1]:.0f})",
                            (10, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color_ok, 1)
 
-                # Stability
                 stable_ok = stable_count >= MIN_STABLE_FRAMES
                 color_ok = (0, 255, 0) if stable_ok else (255, 165, 0)
                 cv2.putText(display, f"Stable: {stable_count}/{MIN_STABLE_FRAMES}",
                            (10, 135), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color_ok, 1)
 
-                # Quality score
                 quality_ok = quality['total'] >= MIN_QUALITY_SCORE
                 if quality['total'] >= 70:
-                    q_color = (0, 255, 0)  # green - excellent
+                    q_color = (0, 255, 0)
                 elif quality['total'] >= MIN_QUALITY_SCORE:
-                    q_color = (0, 255, 255)  # yellow - acceptable
+                    q_color = (0, 255, 255)
                 else:
-                    q_color = (0, 0, 255)  # red - unacceptable
+                    q_color = (0, 0, 255)
                 cv2.putText(display, f"Quality: {quality['total']:.0f} (S:{quality['sharpness']:.0f} C:{quality['contrast']:.0f})",
                            (10, 160), cv2.FONT_HERSHEY_SIMPLEX, 0.5, q_color, 1)
 
-                # Overall status — show which conditions are satisfied
                 region_ok = check_region(metrics['center'], region)
                 size_ok = size_range[0] <= metrics['size'] <= size_range[1]
                 tilt_ok = tilt_range[0] <= metrics['tilt'] <= tilt_range[1]
@@ -481,7 +375,6 @@ def main():
             cv2.putText(display, f"ALL TASKS DONE! Press 's' to calibrate",
                        (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
 
-        # Progress bar
         completed = sum(task_completed)
         progress = completed / len(tasks)
         bar_width = 300
@@ -490,7 +383,7 @@ def main():
         cv2.putText(display, f"{completed}/{len(tasks)} tasks",
                    (10 + bar_width + 10, nH-25), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
-        # Draw region indicator (kept consistent with check_region)
+        # These boundaries must match check_region.
         regions_coords = {
             'center': (int(0.20*nW), int(0.20*nH), int(0.80*nW), int(0.80*nH)),
             'left':   (0,            int(0.20*nH), int(0.40*nW), int(0.80*nH)),
@@ -503,7 +396,6 @@ def main():
             x1, y1, x2, y2 = regions_coords[region]
             cv2.rectangle(display, (x1, y1), (x2, y2), (0, 255, 255), 2)
 
-        # Show
         cv2.imshow('Camera Calibration (Quality Mode)', display)
         cam.MV_CC_FreeImageBuffer(stOutFrame)
 
@@ -512,7 +404,6 @@ def main():
         if key == ord('q'):
             break
         elif key == ord('c') and found and corners_refined is not None:
-            # Force capture
             obj_points.append(objp)
             img_points.append(corners_refined)
             captured_images.append(gray.copy())
@@ -523,13 +414,11 @@ def main():
                     current_task += 1
             last_capture_time = time.time()
         elif key == ord('n') and current_task < len(tasks):
-            # Skip the current task
             print(f"  Skipped: {tasks[current_task][3]}")
             task_completed[current_task] = True
             while current_task < len(tasks) and task_completed[current_task]:
                 current_task += 1
         elif key == ord('s') and len(img_points) >= 12:
-            # Start calibration
             print("\n" + "=" * 60)
             print(f"Starting calibration... (using {len(img_points)} images)")
             print("=" * 60)
@@ -552,27 +441,12 @@ def main():
             print("\nDistortion coefficients dist:")
             print(dist.flatten())
 
-            # Save results to deploy/reorient/config/camera_calibration.npz
             CONFIG_DIR.mkdir(exist_ok=True, parents=True)
             output_file = CONFIG_DIR / "camera_calibration.npz"
             np.savez(str(output_file), K=K, dist=dist, rvecs=rvecs, tvecs=tvecs, rms=ret)
             print(f"\nSaved to: {output_file}")
-
-            # Generate copy-pasteable code
-            print("\n" + "=" * 60)
-            print("Code to paste into cube_observer.py:")
-            print("=" * 60)
-            print(f"self.K = np.array([")
-            print(f"    [{K[0,0]:.2f}, {K[0,1]:.2f}, {K[0,2]:.2f}],")
-            print(f"    [{K[1,0]:.2f}, {K[1,1]:.2f}, {K[1,2]:.2f}],")
-            print(f"    [{K[2,0]:.2f}, {K[2,1]:.2f}, {K[2,2]:.2f}]")
-            print(f"], dtype=np.float64)")
-            d = dist.flatten()
-            print(f"self.dist = np.array([{d[0]:.6f}, {d[1]:.6f}, {d[2]:.6f}, {d[3]:.6f}, {d[4]:.6f}])")
-            print("=" * 60)
             break
 
-    # Cleanup
     cv2.destroyAllWindows()
     cam.MV_CC_StopGrabbing()
     cam.MV_CC_CloseDevice()
@@ -582,4 +456,7 @@ def main():
 
 
 if __name__ == "__main__":
+    # OPENCV_LOG_LEVEL is only read while cv2 initialises, so setting it after
+    # `import cv2` is a no-op; use the runtime API at the process entry point.
+    cv2.utils.logging.setLogLevel(cv2.utils.logging.LOG_LEVEL_ERROR)
     main()

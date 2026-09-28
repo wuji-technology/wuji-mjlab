@@ -10,6 +10,37 @@ permissions:
   contents: read
 
 jobs:
+  file-sizes:
+    name: File size limit (10 MB)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Reject tracked files larger than 10 MB
+        # Keep the public CI limit in sync with vcs.max_bytes_hard in the OSS gate.
+        run: |
+          python3 - <<'PY'
+          import subprocess
+          import sys
+
+          limit = 10_000_000
+          tree = subprocess.check_output(["git", "ls-tree", "-r", "-l", "-z", "HEAD"])
+          failures = []
+          for entry in tree.split(b"\0"):
+              if not entry:
+                  continue
+              metadata, path = entry.split(b"\t", 1)
+              _, kind, _, size = metadata.split()
+              if kind == b"blob" and int(size) > limit:
+                  failures.append((path.decode("utf-8", errors="replace"), int(size)))
+          for path, size in failures:
+              print(f"File exceeds 10 MB: {path!r} ({size:,} bytes)")
+          if failures:
+              print("Compress these files or move them to Release attachments.")
+          sys.exit(bool(failures))
+          PY
+
   lint-and-lockfile:
     name: Lint, lockfile
     runs-on: ubuntu-latest
@@ -20,7 +51,10 @@ jobs:
       - name: Setup pixi (binary only, no env install)
         uses: prefix-dev/setup-pixi@v0.8.1
         with:
-          pixi-version: v0.66.0
+          # Keep in sync with the training image's pixi (>=0.71 for the
+          # [workspace].platforms glibc virtual-package syntax; the cluster
+          # image ships 0.72). Older pixi rejects that syntax / the lock.
+          pixi-version: v0.72.0
           run-install: false
 
       - name: Verify pixi.lock is in sync with pixi.toml
@@ -41,11 +75,18 @@ jobs:
         run: ruff format --check src/wuji_mjlab/
 
   test:
-    name: Reorient tests
+    name: Task tests
     runs-on: ubuntu-latest
+    env:
+      MUJOCO_GL: osmesa
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Install OSMesa
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libosmesa6
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -57,12 +98,43 @@ jobs:
         run: |
           pip install --index-url https://download.pytorch.org/whl/cpu torch
           pip install \
-            mjlab==1.3.0 \
+            mjlab==1.6.0 \
             onnxruntime \
             numpy \
+            pyyaml \
+            pyzmq \
             scipy \
+            opencv-contrib-python-headless \
+            pupil-apriltags \
             'pytest>=9.0'
           pip install -e . --no-deps
+          # The parity script imports deploy libraries outside pytest, so install them here.
+          for manifest in deploy/*/pyproject.toml; do
+            [ -f "$manifest" ] || continue
+            pip install -e "$(dirname "$manifest")" --no-deps
+          done
 
-      - name: Run reorient tests
-        run: pytest src/wuji_mjlab/tasks/reorient/tests/ -m 'not slow' -v
+      - name: Run task tests
+        run: |
+          for tests in src/wuji_mjlab/tasks/*/tests; do
+            [ -d "$tests" ] || continue
+            pytest "$tests" -m 'not slow' -v
+          done
+
+      - name: Run deploy tests
+        run: |
+          for tests in deploy/*/tests; do
+            [ -d "$tests" ] || continue
+            pytest "$tests" -m 'not slow' -v
+          done
+
+      - name: Validate reorient sim-to-deploy parity
+        run: |
+          # Gen 1 only skips when its asset is absent; a CI checkout must contain it.
+          test -f src/wuji_mjlab/assets/robots/wuji_hand/mjcf/right_mjlab.xml
+          python src/wuji_mjlab/tasks/reorient/tooling/validate_obs_vs_sim.py \
+            --gen 1 --hand right --steps 20
+          python src/wuji_mjlab/tasks/reorient/tooling/validate_obs_vs_sim.py \
+            --gen 2 --hand right --steps 60
+          python src/wuji_mjlab/tasks/reorient/tooling/validate_obs_vs_sim.py \
+            --gen 2 --hand right --task WujiHand2_Reorient_50Hz --steps 60

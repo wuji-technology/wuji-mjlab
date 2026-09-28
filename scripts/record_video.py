@@ -72,9 +72,11 @@ def main() -> None:
   policy = runner.get_inference_policy(device=device)
 
   obs = env.get_observations()
-  for _ in range(known.video_length + 10):
-    action = policy(obs)
-    obs, _, _, _ = env.step(action)
+  # Circular history buffers reject grad-tracked inputs during in-place writes.
+  with torch.inference_mode():
+    for _ in range(known.video_length + 10):
+      action = policy(obs)
+      obs, _, _, _ = env.step(action)
 
   env.close()
   print(f"[INFO] Video saved to: {video_dir}")

@@ -1,34 +1,16 @@
-# Cube World Observer Configuration
-# Adjust these parameters to tune tracking behavior
 # Note: ZMQ port is configured in control.yaml (zmq.cube_port)
 
-# SO3 Kalman Filter for rotation
 rotation_filter:
-  process_noise: 0.5      # Higher = more agile, allows faster rotation changes
-  measurement_noise: 0.1  # Lower = trust PnP measurement more
+  process_noise: 0.5
+  measurement_noise: 0.1
 
-# Low-pass filter for position
 position_filter:
-  alpha: 0.8              # Higher = faster tracking (0-1, 1=no filter)
+  alpha: 0.8
 
-# Presets (uncomment to use):
-#
-# Agile (fast response, more noise):
-#   process_noise: 0.5
-#   measurement_noise: 0.1
-#   alpha: 0.8
-#
-# Smooth (stable, slower response):
-#   process_noise: 0.01
-#   measurement_noise: 2.0
-#   alpha: 0.2
-
-# PnP solver
 pnp:
-  reproj_threshold: 6.0     # px; mean reprojection error after PnP refinement; treated as failure above this threshold
+  reproj_threshold: 6.0     # px
 
-# Image preprocessing
 preprocess:
-  enable_clahe: true        # if disabled, use min-channel grayscale directly without contrast enhancement
+  enable_clahe: true
   clahe_clip: 2.0
   clahe_tile: [8, 8]

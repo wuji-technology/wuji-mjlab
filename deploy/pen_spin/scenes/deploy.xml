@@ -1,0 +1,61 @@
+<mujoco model="wuji_deploy_scene">
+  <!-- WujiHand Cube Reorient Scene - tag100 at world origin -->
+
+  <statistic center="0.0437 0 -0.0262" extent="0.35" meansize="0.01"/>
+
+  <visual>
+    <headlight diffuse=".8 .8 .8" ambient=".2 .2 .2" specular="1 1 1"/>
+    <rgba force="1 0 0 1"/>
+    <global azimuth="120" elevation="-20"/>
+    <map force="0.01" stiffness="500"/>
+    <scale forcewidth="0.1" contactwidth="0.5" contactheight="0.2"/>
+    <quality shadowsize="8192"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.9" rgb2="0.9 0.95 1" width="800" height="800"/>
+    <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8"
+      width="300" height="300"/>
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2"/>
+  </asset>
+
+  <worldbody>
+
+    <light name="spotlight" mode="targetbodycom" target="right_palm_link" pos="3 0 4"/>
+
+    <!-- Deploy-specific calibration chain. The robot entity is attached under
+         tag100_body by lib/scene_builder (frame carries PALM_MOUNT_POS/QUAT, the
+         offset that used to be baked into hand.xml's palm_link). Kept out of the
+         robot asset so assets/robots/wuji_hand2 stays a verbatim upstream copy. -->
+    <body name="wuji_mount" pos="0 0 0" quat="1 0 0 0">
+      <site name="wuji_mount_frame" pos="0 0 0" type="sphere" size="0.02" rgba="1 1 1 0.3" group="0"/>
+      <body name="tag100_body" pos="0 0 0">
+        <site name="tag100_frame" pos="0 0 0" type="sphere" size="0.005" rgba="1 0 1 1" group="0"/>
+        <geom name="tag100_x" type="cylinder" pos="0.02 0 0" size="0.003 0.02" contype="0" conaffinity="0" group="0" mass="0" euler="0 1.5708 0" rgba="1 0 0 0.9"/>
+        <geom name="tag100_y" type="cylinder" pos="0 0.02 0" size="0.003 0.02" contype="0" conaffinity="0" group="0" mass="0" euler="1.5708 0 0" rgba="0 1 0 0.9"/>
+        <geom name="tag100_z" type="cylinder" pos="0 0 0.02" size="0.003 0.02" contype="0" conaffinity="0" group="0" mass="0" rgba="0 0 1 0.9"/>
+      </body>
+    </body>
+    <camera name="side" pos="-0.2063 0.35 0.1738" xyaxes="-0.783 -0.622 -0.000 0.332 -0.419 0.845"/>
+    <geom name="floor" pos="0 0 -0.25" size="0 0 0.01" type="plane" material="groundplane" contype="2" conaffinity="2"/>
+  </worldbody>
+
+  <keyframe>
+
+      <key name="home"
+      qpos="
+      0.8 -0.0215 0.285 0.582
+      0.441 0.163 0.822 0.494
+      0.448 -0.0832 0.883 0.305
+      0.594 -0.268 1.13 0.18
+      1.2 -0.228 0.794 0.407
+      -0.1404 0.0042 0.0101 0.3894 -0.3796 -0.5980 -0.5888"
+      ctrl="
+      0.8 -0.0215 0.285 0.582
+      0.441 0.163 0.822 0.494
+      0.448 -0.0832 0.883 0.305
+      0.594 -0.268 1.13 0.18
+      1.2 -0.228 0.794 0.407"/>
+
+  </keyframe>
+</mujoco>

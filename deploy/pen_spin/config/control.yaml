@@ -1,0 +1,39 @@
+# Runtime control parameters for the fixed-wrist pen-spin task.
+
+timing:
+  ctrl_dt: 0.02
+  servo_hz: 1000.0
+  idle_viewer_hz: 30.0
+  jv_lowpass_cutoff_hz: 100.0
+
+# Optional per-joint overrides:
+#   kp_joint:     {finger5_joint2: 3.0}
+#   effort_joint: {finger5_joint2: 1.0}
+gains:
+  kp: 3.0
+  kd: 0.1
+  effort: 1.5
+
+# Joint limits are ordered finger-major, four joints per finger. Values are in
+# radians and match the shared wuji_hand2 MJCF.
+joint_limits:
+  - [-1.187, 1.291]
+  - [-1.484, 0.698]
+  - [-1.047, 1.570]
+  - [-1.047, 1.570]
+  - [-1.047, 1.570]
+  - [-0.698, 0.698]
+  - [-1.047, 2.094]
+  - [-1.047, 1.570]
+  - [-1.047, 1.570]
+  - [-0.698, 0.698]
+  - [-1.047, 2.094]
+  - [-1.047, 1.570]
+  - [-1.047, 1.570]
+  - [-0.698, 0.698]
+  - [-1.047, 2.094]
+  - [-1.047, 1.570]
+  - [-1.047, 1.570]
+  - [-0.698, 0.698]
+  - [-1.047, 2.094]
+  - [-1.047, 1.570]

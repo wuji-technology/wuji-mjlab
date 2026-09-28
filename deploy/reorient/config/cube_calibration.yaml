@@ -1,25 +1,5 @@
-# ─────────────────────── Cube calibration (reference rig) ───────────────────────
-# Per-face axis_map / rotations / orientation_offsets derived from physical
-# inspection of a printed cube on the reference rig. Face orientations don't
-# trivially derive from the cube mesh's material assignment — they depend on
-# how the ArUco face tags were physically glued, so this data must be
-# regenerated for any new cube.
-#
-# This file ships as a reference so the pipeline runs end-to-end out of the
-# box. NOTE: deploy code does NOT read this file at runtime — the live PnP
-# pipeline uses cube_tags.json (tag IDs + face_rotations). This yaml is
-# preserved as a human-readable record of the reference rig's per-face tag
-# layout. If you print your own cube, validate with the section 8.4
-# calib_check tool in docs/sim2real/setup.md.
-#
-# ─────────────────────── axis_map (dead-doc field) ───────────────────────
-# Documents the physical tag-to-face mounting convention used when this cube
-# was calibrated: each of the 6 faces (keys 0..5) has its ArUco tags glued on
-# such that the face-local tag normal points along -z (axis=2, sign=-1).
-#
-# NOTE: This field is NOT consumed by any code path at runtime — it is
-# preserved only as a human-readable provenance record for future
-# calibration regeneration tool.
+# Face tag layout depends on how the ArUco tags were physically glued, so regenerate it per cube.
+# axis_map records the mounting convention: each face's tag normal is the face-local -z axis.
 axis_map:
   0:
     axis: 2

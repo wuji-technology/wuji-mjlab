@@ -6,21 +6,14 @@ import torch
 from mjlab.entity import Entity
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 
-from wuji_mjlab.tasks.reorient.mdp.event_utils import resolve_env_ids
+from wuji_mjlab.tasks.reorient.mdp._env_utils import resolve_env_ids
 
 _DEFAULT_ROBOT_CFG = SceneEntityCfg("robot")
-
-
-def num_selected_bodies(asset: Entity, body_ids: list[int] | slice) -> int:
-  if isinstance(body_ids, slice):
-    return asset.num_bodies
-  return len(body_ids)
 
 
 def resolve_joint_velocity_limits(
   asset: Entity, env_ids: torch.Tensor
 ) -> torch.Tensor | None:
-  """Return per-env joint velocity limits if exposed by the backend."""
   soft_vel_limits = getattr(asset.data, "soft_joint_vel_limits", None)
   if soft_vel_limits is not None:
     return soft_vel_limits[env_ids]
@@ -71,7 +64,6 @@ def reset_joints_within_limits_range(
   asset_cfg: SceneEntityCfg = _DEFAULT_ROBOT_CFG,
   operation: str = "abs",
 ) -> None:
-  """Reset articulation joints with per-pattern random ranges."""
   env_ids = resolve_env_ids(env, env_ids)
   if env_ids.numel() == 0:
     return

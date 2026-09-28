@@ -1,33 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Wuji Technology Co., Ltd.
-"""Term-group builders for the reorient task.
-
-``reorient_env_cfg.make_reorient_env_cfg`` calls these ``build_*`` functions
-to assemble a ``ManagerBasedRlEnvCfg``. Splitting the per-group construction
-out of the env-cfg keeps the top-level assembly file small and makes
-individual term groups easy to inspect, override, or unit-test.
-
-Robot-binding note: this module owns the full reorient task design,
-including decisions that conceptually belong at the robot-binding layer
-(``config/wuji_hand/env_cfgs.py``):
-
-- 7 contact sensors (``build_reorient_sensors``) — patterns include
-  the hardcoded ``right_palm_link`` subtree filter for ``finger_collision``.
-- The ``palm_detach`` reward and the boosted ``finger_collision`` weight.
-- The 2-group startup contact_params DR split, grouped by hand anatomy:
-  ``contact_params_palm_thumb`` for the 5 geoms of the continuous
-  silicone-pad compliance zone (palm + entire thumb: link2_col,
-  link2_softbody, link3, link4), and ``contact_params_fingers`` for the
-  12 geoms of the rigid grasping fingers (fingers 2-5, link2-4). Width
-  × (2.0, 5.0) on the soft-pad group, width × (1.0, 2.0) on the fingers
-  group; both events carry solimp_dmin_range=(0.5, 1.0). The thumb
-  fingertip's link4 mesh belongs in the soft-pad zone with the rest of
-  the thumb, not in a separate fingertip bucket.
-
-The Wuji Hand right-hand asset is therefore baked in here. A second
-robot binding (e.g. left hand) would need either a parallel terms module
-or an explicit override at the binding site.
-"""
+"""Term-group builders for the reorient task."""
 
 from __future__ import annotations
 
@@ -48,6 +21,30 @@ from mjlab.utils.noise import UniformNoiseCfg as Unoise
 
 from wuji_mjlab.tasks.reorient import mdp
 from wuji_mjlab.tasks.reorient.mdp.commands import InHandReorientCommandCfg
+from wuji_mjlab.tasks.reorient.reorient_constants import REORIENT_PALM_NORMAL_AXIS
+
+HAND1_TIP_COLLISION_GEOMS = (".*_finger[1-5]_link4_col",)
+
+HAND1_TIP_CONTACT_BODY_NAMES = (".*_finger[1-5]_link4",)
+
+HAND1_DISTAL_FINGER_OBJECT_BODY_NAMES = (
+  ".*_finger.*_link3",
+  *HAND1_TIP_CONTACT_BODY_NAMES,
+)
+
+HAND1_FINGER_CONTACT_PARAM_GEOMS = (r".*finger[2-5]_link[2-4]_col",)
+
+HAND1_SOFT_PAD_GEOMS = (
+  "right_palm_collision",
+  "right_finger1_link2_col",
+  "right_finger1_link2_softbody_col",
+  "right_finger1_link3_col",
+  "right_finger1_link4_col",
+)
+
+HAND1_GEOM_SIZE_DR_GEOMS = (r".*finger[1-5]_link[2-3]_col",)
+
+ROBOT_PITCH_RANGE = (-0.4, 0.1)
 
 
 def build_reorient_observations(
@@ -65,7 +62,6 @@ def build_reorient_observations(
       func=mdp.joint_pos_target_error,
       history_length=history_length,
     ),
-    # Absolute cube position in tag frame (not a delta from a reference).
     "cube_pos_in_tag": ObservationTermCfg(
       func=mdp.cube_pos_in_tag,
       params={"injection_prob": 0.02},
@@ -113,7 +109,6 @@ def build_reorient_observations(
       func=mdp.previous_raw_action,
       history_length=history_length,
     ),
-    # Privileged observations
     "true_joint_pos": ObservationTermCfg(
       func=mdp.joint_pos_rel,
       history_length=history_length,
@@ -202,13 +197,14 @@ def build_reorient_observations(
 def build_reorient_sensors(
   tip_collision_geoms: tuple[str, ...],
   tip_body_names: tuple[str, ...],
+  tip_contact_body_names: tuple[str, ...],
   undesired_object_contact_bodies: tuple[str, ...],
+  distal_finger_object_body_names: tuple[
+    str, ...
+  ] = HAND1_DISTAL_FINGER_OBJECT_BODY_NAMES,
+  palm_subtree_body: str = "right_palm_link",
 ) -> tuple[SensorCfg, ...]:
-  """Build the 7 contact sensors required by the reorient task.
-
-  Hardcoded Wuji Hand right-hand: ``finger_collision`` filters against
-  the ``right_palm_link`` subtree.
-  """
+  """Build the contact sensors required by the reorient task."""
   tip_object_contact = ContactSensorCfg(
     name="tip_object_contact",
     primary=ContactMatch(mode="geom", pattern=tip_collision_geoms, entity="robot"),
@@ -225,7 +221,6 @@ def build_reorient_sensors(
     reduce="netforce",
     num_slots=1,
   )
-  # Used by palm_detach: cube clear of palm/proximal AND touching distal fingers.
   palm_object_found = ContactSensorCfg(
     name="palm_object_found",
     primary=ContactMatch(
@@ -242,7 +237,7 @@ def build_reorient_sensors(
     name="distal_finger_object_found",
     primary=ContactMatch(
       mode="body",
-      pattern=(".*_finger.*_link[34]",),
+      pattern=distal_finger_object_body_names,
       entity="robot",
     ),
     secondary=ContactMatch(mode="body", pattern="cube", entity="object"),
@@ -262,7 +257,7 @@ def build_reorient_sensors(
   )
   robot_contact = ContactSensorCfg(
     name="robot_contact",
-    primary=ContactMatch(mode="body", pattern=tip_body_names, entity="robot"),
+    primary=ContactMatch(mode="body", pattern=tip_contact_body_names, entity="robot"),
     fields=("force",),
     reduce="netforce",
     num_slots=1,
@@ -270,7 +265,7 @@ def build_reorient_sensors(
   finger_collision = ContactSensorCfg(
     name="finger_collision",
     primary=ContactMatch(mode="geom", pattern=(".*finger.*_col",), entity="robot"),
-    secondary=ContactMatch(mode="subtree", pattern="right_palm_link", entity="robot"),
+    secondary=ContactMatch(mode="subtree", pattern=palm_subtree_body, entity="robot"),
     fields=("found", "force"),
     reduce="none",
     num_slots=1,
@@ -315,19 +310,39 @@ def build_reorient_commands() -> dict[str, CommandTermCfg]:
   }
 
 
-def build_reorient_events() -> dict[str, EventTermCfg]:
-  """Build all event terms (resets, intervals, startup DR)."""
-  return {
-    "reset_robot_pose": EventTermCfg(
-      func=mdp.reset_root_state_uniform,
-      mode="reset",
-      params={
-        "pose_range": {
-          "pitch": (-0.4, 0.1),
-        },
-        "asset_cfg": SceneEntityCfg("robot"),
-      },
-    ),
+def build_reorient_events(
+  finger_contact_param_geoms: tuple[str, ...] = HAND1_FINGER_CONTACT_PARAM_GEOMS,
+  soft_pad_geoms: tuple[str, ...] = HAND1_SOFT_PAD_GEOMS,
+  geom_size_dr_geoms: tuple[str, ...] | None = HAND1_GEOM_SIZE_DR_GEOMS,
+  robot_tilt_pivot_in_root: tuple[float, float, float] | None = None,
+) -> dict[str, EventTermCfg]:
+  """Build all event terms (resets, intervals, startup DR).
+
+  Args:
+    geom_size_dr_geoms: Pass ``None`` for mesh collision geoms; ``randomize_geom_size_uniform`` only supports primitives.
+    robot_tilt_pivot_in_root: Root-frame mount location for Wuji Hand 2's world-axis pitch; its palm root maps local Y to world Z."""
+  robot_pose = EventTermCfg(
+    func=mdp.reset_root_state_uniform,
+    mode="reset",
+    params={
+      "pose_range": {"pitch": ROBOT_PITCH_RANGE},
+      "asset_cfg": SceneEntityCfg("robot"),
+    },
+  )
+  object_pose = EventTermCfg(
+    func=mdp.reset_object_orientation,
+    mode="reset",
+    params={
+      "pos_noise": 0.01,
+      "asset_cfg": SceneEntityCfg("object"),
+    },
+  )
+  if robot_tilt_pivot_in_root is not None:
+    robot_pose.func = mdp.reset_root_pose_about_world_axes
+    robot_pose.params["pivot_in_root"] = robot_tilt_pivot_in_root
+
+  events = {
+    "reset_robot_pose": robot_pose,
     "reset_robot_joints": EventTermCfg(
       func=mdp.reset_joints_within_limits_range,
       mode="reset",
@@ -344,14 +359,7 @@ def build_reorient_events() -> dict[str, EventTermCfg]:
         "operation": "abs",
       },
     ),
-    "reset_object_pose": EventTermCfg(
-      func=mdp.reset_object_orientation,
-      mode="reset",
-      params={
-        "pos_noise": 0.01,
-        "asset_cfg": SceneEntityCfg("object"),
-      },
-    ),
+    "reset_object_pose": object_pose,
     "object_disturbance_force": EventTermCfg(
       func=mdp.apply_velocity_disturbance,
       mode="interval",
@@ -362,6 +370,7 @@ def build_reorient_events() -> dict[str, EventTermCfg]:
         "warmup_time_s": 3.0,
         "warmup_frac": 0.05,
         "rampup_frac": 0.80,
+        "use_time_ramp": True,
         "adaptive_curriculum_term": "adaptive_episode",
       },
     ),
@@ -373,7 +382,6 @@ def build_reorient_events() -> dict[str, EventTermCfg]:
       func=mdp.reset_joint_acc_cache,
       mode="reset",
     ),
-    # Domain randomization (startup)
     "object_com": EventTermCfg(
       mode="startup",
       func=mdp.dr.body_com_offset,
@@ -399,28 +407,21 @@ def build_reorient_events() -> dict[str, EventTermCfg]:
       mode="startup",
       func=mdp.randomize_geom_size_uniform,
       params={
-        # randomize_geom_size_uniform rejects mesh geoms; restrict to the 10 primitive capsules.
+        # randomize_geom_size_uniform rejects mesh geoms; restrict to primitives.
         "asset_cfg": SceneEntityCfg(
           "robot",
-          geom_names=(r".*finger[1-5]_link[2-3]_col",),
+          geom_names=geom_size_dr_geoms or (),
         ),
         "scale_range": (0.97, 1.03),
       },
     ),
-    # 2-group contact DR: thumb+palm (soft 2-5mm) vs fingers 2-5 (rigid 1-2mm).
     "contact_params_palm_thumb": EventTermCfg(
       mode="startup",
       func=mdp.randomize_contact_params,
       params={
         "robot_cfg": SceneEntityCfg(
           "robot",
-          geom_names=(
-            "right_palm_collision",
-            "right_finger1_link2_col",
-            "right_finger1_link2_softbody_col",
-            "right_finger1_link3_col",
-            "right_finger1_link4_col",
-          ),
+          geom_names=soft_pad_geoms,
         ),
         "solref_timeconst_range": (1.0, 2.0),
         "solref_dampratio_range": (0.8, 1.2),
@@ -436,7 +437,7 @@ def build_reorient_events() -> dict[str, EventTermCfg]:
       params={
         "robot_cfg": SceneEntityCfg(
           "robot",
-          geom_names=(r".*finger[2-5]_link[2-4]_col",),
+          geom_names=finger_contact_param_geoms,
         ),
         "solref_timeconst_range": (1.0, 2.0),
         "solref_dampratio_range": (0.8, 1.2),
@@ -471,16 +472,6 @@ def build_reorient_events() -> dict[str, EventTermCfg]:
         "operation": "scale",
       },
     ),
-    "robot_dof_damping": EventTermCfg(
-      mode="startup",
-      func=mdp.dr.dof_damping,
-      params={
-        "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
-        "operation": "scale",
-        "distribution": "log_uniform",
-        "ranges": (0.3, 3.0),
-      },
-    ),
     "robot_dof_armature": EventTermCfg(
       mode="startup",
       func=mdp.dr.dof_armature,
@@ -490,18 +481,9 @@ def build_reorient_events() -> dict[str, EventTermCfg]:
         "ranges": (0.75, 1.3),
       },
     ),
-    "robot_dof_frictionloss": EventTermCfg(
-      mode="startup",
-      func=mdp.dr.dof_frictionloss,
-      params={
-        "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
-        "operation": "scale",
-        "ranges": (0.5, 2.0),
-      },
-    ),
     "encoder_bias": EventTermCfg(
       mode="startup",
-      func=mdp.randomize_encoder_bias,
+      func=mdp.dr.encoder_bias,
       params={
         "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
         "bias_range": (-0.01, 0.01),
@@ -525,14 +507,17 @@ def build_reorient_events() -> dict[str, EventTermCfg]:
       },
     ),
   }
+  if geom_size_dr_geoms is None:
+    events.pop("robot_geom_size")
+  return events
 
 
 def build_reorient_rewards(
   tip_site_names: tuple[str, ...],
+  cage_up_axis: int = REORIENT_PALM_NORMAL_AXIS,
 ) -> dict[str, RewardTermCfg]:
   """Build the reward term group."""
   return {
-    # Dense rewards (× step_dt)
     "orientation_alignment": RewardTermCfg(
       func=mdp.orientation_alignment,
       weight=15.0,
@@ -550,12 +535,16 @@ def build_reorient_rewards(
       func=mdp.action_rate_combined,
       weight=-1.0,
     ),
+    "action_hf": RewardTermCfg(
+      func=mdp.ActionHighFreqPenalty,
+      weight=0.0,
+    ),
     "torque": RewardTermCfg(
       func=mdp.torque_penalty,
       weight=-24.0,
     ),
     "tip_slide": RewardTermCfg(
-      func=mdp.tip_slide_penalty,
+      func=mdp.TipSlidePenalty,
       weight=-0.3,
       params={
         "robot_cfg": SceneEntityCfg("robot", site_names=tip_site_names),
@@ -571,6 +560,7 @@ def build_reorient_rewards(
           "robot", body_names=(".*_palm_link", ".*_finger.*_link[1-4]")
         ),
         "margin": 0.01,
+        "up_axis": cage_up_axis,
       },
     ),
     "finger_collision": RewardTermCfg(
@@ -587,7 +577,6 @@ def build_reorient_rewards(
         "command_name": "reorient_command",
       },
     ),
-    # palm_detach: cube held only by distal fingers (link3/link4).
     "palm_detach": RewardTermCfg(
       func=mdp.palm_detach_reward,
       weight=0.5,
@@ -603,6 +592,9 @@ def build_reorient_terminations() -> dict[str, TerminationTermCfg]:
       func=mdp.cage_drop,
       params={"max_outside_steps": 10},
     ),
+    # Degenerate mesh-mesh contact in mujoco-warp can NaN a single env; reset it
+    # instead of letting the NaN reach the rsl_rl runner and kill the whole run.
+    "nan_guard": TerminationTermCfg(func=mdp.nan_detection),
   }
 
 
@@ -630,22 +622,21 @@ def build_reorient_curriculum() -> dict[str, CurriculumTermCfg]:
   }
 
 
-def build_reorient_metrics() -> dict[str, MetricsTermCfg]:
-  """Build the metrics term group.
-
-  Note (per-world-mesh mjlab): ``MetricsTermCfg.reduce`` is not exposed; all
-  metrics are averaged over ``step_count``. Metrics that used to be
-  ``reduce="last"`` (``cube_survival_steps``, ``goal_reach_count``) therefore
-  report a per-episode mean of the underlying counter instead of its final
-  value — still a monotonic training signal, just scaled by ~(N+1)/(2N).
-  """
+def build_reorient_metrics(
+  tip_site_names: tuple[str, ...],
+  palm_normal_axis: int = REORIENT_PALM_NORMAL_AXIS,
+) -> dict[str, MetricsTermCfg]:
+  """Build the metrics term group."""
   return {
     "action_delta_rms": MetricsTermCfg(func=mdp.action_delta_rms),
     "action_jerk_rms": MetricsTermCfg(func=mdp.action_jerk_rms),
     "cage_escape_frequency": MetricsTermCfg(func=mdp.cage_escape_frequency),
     "fingertip_contact_count": MetricsTermCfg(
-      func=mdp.fingertip_contact_count,
-      params={"sensor_cfg": SceneEntityCfg("tip_object_contact")},
+      func=mdp.FingertipContactCount,
+      params={
+        "sensor_cfg": SceneEntityCfg("tip_object_contact"),
+        "robot_cfg": SceneEntityCfg("robot", site_names=tip_site_names),
+      },
     ),
     "torque_saturation_ratio": MetricsTermCfg(
       func=mdp.torque_saturation_ratio,
@@ -661,11 +652,21 @@ def build_reorient_metrics() -> dict[str, MetricsTermCfg]:
     ),
     "cube_height_above_palm": MetricsTermCfg(
       func=mdp.cube_height_above_palm,
-      params={"robot_cfg": SceneEntityCfg("robot", body_names=(".*_palm_link",))},
+      params={
+        "robot_cfg": SceneEntityCfg("robot", body_names=(".*_palm_link",)),
+        "palm_normal_axis": palm_normal_axis,
+      },
     ),
     "finger_collision_frequency": MetricsTermCfg(
       func=mdp.finger_collision_frequency,
       params={"sensor_cfg": SceneEntityCfg("finger_collision")},
+    ),
+    "palm_detach_frequency": MetricsTermCfg(
+      func=mdp.palm_detach_frequency,
+      params={
+        "sensor_cfg": SceneEntityCfg("palm_object_found"),
+        "distal_sensor_cfg": SceneEntityCfg("distal_finger_object_found"),
+      },
     ),
     "cube_survival_steps": MetricsTermCfg(func=mdp.cube_survival_steps),
     "success_interval": MetricsTermCfg(

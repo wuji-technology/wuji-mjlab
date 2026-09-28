@@ -1,0 +1,19 @@
+<mujoco model="aruco_pen250_tracking">
+  <compiler angle="degree" texturedir="../textures" />
+  <asset>
+    <material name="white" rgba="1 1 1 1" specular="0" />
+    <texture name="bottom_texture" type="cube" fileright="bottom_right.png" fileleft="bottom_left.png" fileup="bottom_up.png" filedown="bottom_down.png" filefront="white.png" fileback="bottom_back.png" />
+    <material name="bottom_material" texture="bottom_texture" texuniform="false" specular="0" />
+    <texture name="top_texture" type="cube" fileright="top_right.png" fileleft="top_left.png" fileup="top_up.png" filedown="top_down.png" filefront="top_front.png" fileback="white.png" />
+    <material name="top_material" texture="top_texture" texuniform="false" specular="0" />
+  </asset>
+  <worldbody>
+    <body name="cube" pos="0 0 0">
+      <geom name="cube" type="cylinder" fromto="-.089 0 0 .089 0 0" size=".00745" material="white" group="2" contype="1" conaffinity="2" density="469.05012453696503" />
+      <geom name="A_bottom" type="box" pos="-0.107 0 0" size=".009 .009 .018" quat=".7071067811865476 0 .7071067811865476 0" material="bottom_material" group="2" contype="1" conaffinity="2" density="469.05012453696503" />
+      <geom name="A_top" type="box" pos="0.107 0 0" size=".009 .009 .018" quat=".7071067811865476 0 .7071067811865476 0" material="top_material" group="2" contype="1" conaffinity="2" density="469.05012453696503" />
+      <freejoint name="cube_freejoint" />
+      <site name="cube_center" pos="0 0 0" group="4" />
+    </body>
+  </worldbody>
+</mujoco>
