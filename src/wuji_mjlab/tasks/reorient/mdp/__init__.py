@@ -11,6 +11,7 @@ from mjlab.envs.mdp.observations import (
 from mjlab.envs.mdp.observations import (
   joint_vel_rel as joint_vel_rel,
 )
+from mjlab.envs.mdp.terminations import nan_detection as nan_detection
 from mjlab.envs.mdp.terminations import time_out as time_out
 
 from .actions import *  # noqa: F401,F403

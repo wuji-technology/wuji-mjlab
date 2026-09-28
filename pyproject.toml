@@ -45,10 +45,13 @@ where = ["src"]
 [tool.setuptools.package-data]
 wuji_mjlab = [
   "assets/README.md",
+  "assets/objects/aruco_pen250/textures/*.png",
+  "assets/objects/aruco_pen250/xmls/*.xml",
 ]
 
 [tool.pytest.ini_options]
-pythonpath = ["."]
+# The training environment intentionally excludes deploy distributions; cross-side tests import their sources.
+pythonpath = ["deploy/reorient"]
 markers = [
     "slow: marks tests as slow / pollutes mujoco_warp global state (deselect with -m 'not slow')",
 ]
@@ -59,14 +62,10 @@ src = ["src/wuji_mjlab"]
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I", "B"]
-# B008: SceneEntityCfg(...) in default args is the established mjlab
-# term-function convention — keep parity with upstream task examples.
+# B008 is ignored because mjlab task functions use SceneEntityCfg defaults by convention.
 ignore = ["B008"]
 
 [tool.pyright]
 pythonVersion = "3.11"
 ignore = ["./typings"]
-# pyright is a local-only dev tool; CI skips it. The mjlab pypi wheel's
-# type stubs diverge from the mujoco-warp stubs bundled in the pixi env,
-# so CI runs would surface stub-mismatch noise rather than real bugs. Run
-# `pyright src/wuji_mjlab/` locally — 0 actionable errors expected.
+# Keep pyright local: mjlab wheel stubs conflict with mujoco-warp stubs in the pixi environment.

@@ -1,16 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Wuji Technology Co., Ltd.
-"""Importable core for the reorient ONNX export CLI.
-
-Rebuilds the actor network and observation normalizer from a checkpoint
-``state_dict`` without requiring task registration or environment
-instantiation, then writes a single-file ONNX policy plus a derived
-``config.json`` next to the checkpoint.
-
-The thin CLI wrapper lives at ``scripts/export_onnx.py``; this module hosts
-the pure, importable building blocks so that focused unit tests can exercise
-``_build_architecture`` and ``_StandaloneExporter`` without spawning a sim.
-"""
+"""Importable core for the reorient ONNX export CLI."""
 
 from __future__ import annotations
 
@@ -19,6 +9,7 @@ import json
 import os
 import re
 import sys
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -27,10 +18,27 @@ import onnxruntime as ort
 import torch
 import torch.nn as nn
 import yaml
-from rsl_rl.modules import MLP, EmpiricalNormalization
-from rsl_rl.modules.distribution import _MeanSliceDeterministicOutput
+from rsl_rl.modules import (
+  MLP,
+  EmpiricalNormalization,
+  HeteroscedasticGaussianDistribution,
+)
+
+import wuji_mjlab
 
 _ONNX_OPSET_VERSION = 13
+
+_POLICY_SCHEMA = 1
+_POLICY_IDENTITY_KEY = "wuji_policy_identity"
+_POLICY_IDENTITY_FIELDS = (
+  "policy_schema",
+  "hand_gen",
+  "robot_mjcf",
+  "joint_order",
+  "default_joint_pos",
+  "default_joint_pos_source",
+  "obs_term_names",
+)
 
 
 class _StandaloneExporter(nn.Module):
@@ -51,8 +59,6 @@ class _StandaloneExporter(nn.Module):
 
 
 def _load_yaml(path: str) -> dict[str, Any] | None:
-  """Load YAML; strip python tags so untrusted run dirs cannot trigger
-  arbitrary object construction via yaml.unsafe_load."""
   if not os.path.exists(path):
     return None
   with open(path) as f:
@@ -66,7 +72,6 @@ def _load_yaml(path: str) -> dict[str, Any] | None:
 
 
 def _infer_architecture_from_state_dict(state_dict: dict[str, Any]) -> dict[str, Any]:
-  """Infer minimal actor shape information from checkpoint weights."""
   actor_weights: dict[int, torch.Size] = {}
   for key, value in state_dict.items():
     if not key.endswith(".weight"):
@@ -101,7 +106,6 @@ def _infer_architecture_from_state_dict(state_dict: dict[str, Any]) -> dict[str,
 def _build_architecture(
   agent_cfg: dict[str, Any] | None, state_dict: dict[str, Any]
 ) -> dict[str, Any]:
-  """Build actor architecture from agent.yaml with state_dict fallback."""
   inferred = _infer_architecture_from_state_dict(state_dict)
   policy_cfg: dict[str, Any] = {}
   if isinstance(agent_cfg, dict):
@@ -115,11 +119,14 @@ def _build_architecture(
       }
       dist_cfg = actor_cfg.get("distribution_cfg")
       if isinstance(dist_cfg, dict):
-        class_name = str(dist_cfg.get("class_name", ""))
-        if (
-          "HeteroscedasticGaussianDistribution" in class_name
-          or "SoftplusGaussianDistribution" in class_name
-        ):
+        has_global_std = any(
+          key.endswith(("distribution.std_param", "distribution.log_std_param"))
+          for key in state_dict
+        )
+        has_state_dependent_cfg = (
+          dist_cfg.get("std_type") in {"scalar", "log"} or "min_std" in dist_cfg
+        )
+        if has_state_dependent_cfg and not has_global_std:
           policy_cfg["state_dependent_std"] = True
 
   state_dependent_std = bool(policy_cfg.get("state_dependent_std", False))
@@ -159,15 +166,12 @@ def _build_architecture(
 def _check_unsupported(
   state_dict: dict[str, Any], arch: dict[str, Any], agent_cfg: dict[str, Any] | None
 ) -> None:
-  """Check for unsupported checkpoint configurations."""
   rnn_keys = [k for k in state_dict if "memory_a.rnn" in k or "memory_s.rnn" in k]
   if rnn_keys:
     raise ValueError(
       "Recurrent policies (LSTM/GRU) are not supported by this script. "
       "Use the training pipeline's built-in ONNX export instead."
     )
-
-  # state_dependent_std is supported: we slice out only the mean at export time.
 
   policy_cfg = agent_cfg.get("policy", {}) if isinstance(agent_cfg, dict) else {}
   class_name = policy_cfg.get("class_name")
@@ -176,14 +180,12 @@ def _check_unsupported(
 
 
 def _resolve_export_state_dict(checkpoint: dict[str, Any]) -> dict[str, Any]:
-  """Resolve actor state_dict from either legacy or current checkpoint format."""
   if not isinstance(checkpoint, dict):
     raise TypeError(f"Unsupported checkpoint type: {type(checkpoint)!r}")
   if isinstance(checkpoint.get("model_state_dict"), dict):
     return checkpoint["model_state_dict"]
   if isinstance(checkpoint.get("actor_state_dict"), dict):
     return checkpoint["actor_state_dict"]
-  # Fallback: checkpoint may already be a state_dict
   if any(k.startswith("actor.") or k.startswith("mlp.") for k in checkpoint):
     return checkpoint
   raise KeyError(
@@ -274,20 +276,188 @@ def _infer_control_config(env_cfg: dict[str, Any]) -> dict[str, Any]:
   return config
 
 
+def _build_policy_identity(env_cfg: dict[str, Any]) -> dict[str, Any]:
+  try:
+    robot_cfg = env_cfg["scene"]["entities"]["robot"]
+    encoded_path = robot_cfg["spec_fn"]
+  except (KeyError, IndexError, TypeError) as exc:
+    raise ValueError(
+      "Cannot find the robot MJCF in "
+      "scene.entities.robot.spec_fn.state[1] from params/env.yaml"
+    ) from exc
+  while isinstance(encoded_path, dict):
+    state = encoded_path.get("state")
+    if (
+      not isinstance(state, (list, tuple))
+      or len(state) < 2
+      or not isinstance(state[1], (list, tuple))
+      or not state[1]
+    ):
+      break
+    encoded_path = state[1][0]
+
+  if isinstance(encoded_path, str):
+    robot_mjcf = encoded_path
+  elif (
+    isinstance(encoded_path, (list, tuple))
+    and encoded_path
+    and all(isinstance(part, str) for part in encoded_path)
+  ):
+    robot_mjcf = str(Path(*encoded_path))
+  else:
+    raise ValueError(
+      "Cannot decode the robot MJCF path from "
+      f"scene.entities.robot.spec_fn.state[1]: {encoded_path!r}"
+    )
+
+  mjcf_parts = Path(robot_mjcf).parts
+  anchor_index = next(
+    (
+      index
+      for index in range(len(mjcf_parts) - 1)
+      if mjcf_parts[index : index + 2] == ("src", "wuji_mjlab")
+    ),
+    None,
+  )
+  if anchor_index is None:
+    raise FileNotFoundError(
+      f"Cannot remap robot MJCF {robot_mjcf!r}: "
+      "the recorded path has no src/wuji_mjlab/ anchor"
+    )
+  local_mjcf = (
+    Path(wuji_mjlab.__file__).resolve().parent.joinpath(*mjcf_parts[anchor_index + 2 :])
+  )
+  if not local_mjcf.is_file():
+    raise FileNotFoundError(
+      f"Robot MJCF {robot_mjcf!r} remaps to {local_mjcf}, but that file does not exist"
+    )
+
+  if "wuji_hand2" in mjcf_parts:
+    hand_gen = 2
+  elif "wuji_hand" in mjcf_parts:
+    hand_gen = 1
+  else:
+    raise ValueError(
+      f"Cannot determine hand generation from robot MJCF path {robot_mjcf!r}"
+    )
+
+  if hand_gen == 1:
+    from wuji_mjlab.assets.robots.wuji_hand.wuji_hand_cfg import _get_spec
+  else:
+    from wuji_mjlab.assets.robots.wuji_hand2.wuji_hand2_cfg import _get_spec
+
+  try:
+    spec = _get_spec(local_mjcf)
+  except ValueError as exc:
+    raise ValueError(f"Cannot parse robot MJCF {local_mjcf}: {exc}") from exc
+  joint_order = [actuator.target for actuator in spec.actuators]
+  if len(joint_order) != 20:
+    raise ValueError(
+      f"Robot MJCF {local_mjcf} has {len(joint_order)} actuators; expected 20"
+    )
+  if len(set(joint_order)) != len(joint_order):
+    raise ValueError(f"Robot MJCF {local_mjcf} maps multiple actuators to one joint")
+
+  try:
+    joint_pos_rules = robot_cfg["init_state"]["joint_pos"]
+  except (KeyError, TypeError) as exc:
+    raise ValueError(
+      "Cannot find scene.entities.robot.init_state.joint_pos in params/env.yaml"
+    ) from exc
+  if not isinstance(joint_pos_rules, dict):
+    raise ValueError(
+      "scene.entities.robot.init_state.joint_pos must be a regex-to-value mapping"
+    )
+
+  default_joint_pos: list[float] = []
+  for joint_name in joint_order:
+    matches: list[tuple[str, Any]] = []
+    for pattern, value in joint_pos_rules.items():
+      if not isinstance(pattern, str):
+        raise ValueError(f"Joint position pattern must be a string, got {pattern!r}")
+      try:
+        matched = re.fullmatch(pattern, joint_name) is not None
+      except re.error as exc:
+        raise ValueError(f"Invalid joint position regex {pattern!r}: {exc}") from exc
+      if matched:
+        matches.append((pattern, value))
+    if len(matches) != 1:
+      matched_patterns = [pattern for pattern, _ in matches]
+      raise ValueError(
+        f"Joint {joint_name!r} matched {len(matches)} init_state.joint_pos "
+        f"patterns {matched_patterns!r}; expected exactly one"
+      )
+    pattern, value = matches[0]
+    try:
+      default_joint_pos.append(float(value))
+    except (TypeError, ValueError) as exc:
+      raise ValueError(
+        f"Joint position pattern {pattern!r} has non-numeric value {value!r}"
+      ) from exc
+
+  try:
+    policy_terms = env_cfg["observations"]["policy"]["terms"]
+  except (KeyError, TypeError) as exc:
+    raise ValueError(
+      "Cannot find observations.policy.terms in params/env.yaml"
+    ) from exc
+  if (
+    not isinstance(policy_terms, dict)
+    or not policy_terms
+    or not all(isinstance(name, str) for name in policy_terms)
+  ):
+    raise ValueError("observations.policy.terms must be a non-empty named mapping")
+
+  return {
+    "policy_schema": _POLICY_SCHEMA,
+    "hand_gen": hand_gen,
+    "robot_mjcf": robot_mjcf,
+    "joint_order": joint_order,
+    "default_joint_pos": default_joint_pos,
+    "default_joint_pos_source": "scene.entities.robot.init_state.joint_pos",
+    "obs_term_names": list(policy_terms),
+  }
+
+
+def _policy_identity_from_config(config: dict[str, Any]) -> dict[str, Any]:
+  missing = [field for field in _POLICY_IDENTITY_FIELDS if field not in config]
+  if missing:
+    raise ValueError(f"Export config is missing policy identity fields: {missing}")
+  return {field: config[field] for field in _POLICY_IDENTITY_FIELDS}
+
+
+def _set_policy_identity_metadata(
+  model: onnx.ModelProto, identity: dict[str, Any]
+) -> None:
+  encoded = json.dumps(identity, sort_keys=True, separators=(",", ":"))
+  for prop in model.metadata_props:
+    if prop.key == _POLICY_IDENTITY_KEY:
+      prop.value = encoded
+      return
+  prop = model.metadata_props.add()
+  prop.key = _POLICY_IDENTITY_KEY
+  prop.value = encoded
+
+
 def _build_config(run_dir: str, env_cfg: dict[str, Any] | None) -> dict[str, Any]:
-  """Build task-aware config.json from params/env.yaml."""
-  config: dict[str, Any] = {}
-
   if not isinstance(env_cfg, dict):
-    return config
+    raise ValueError(
+      f"Cannot build policy identity for {run_dir}: "
+      "params/env.yaml is missing or could not be parsed"
+    )
 
+  config: dict[str, Any] = {}
   config.update(_infer_control_config(env_cfg))
 
   decimation = int(env_cfg.get("decimation", 5))
   sim_cfg = env_cfg.get("sim", {})
   timestep = 0.01
   if isinstance(sim_cfg, dict):
-    timestep = float(sim_cfg.get("timestep", 0.01))
+    mujoco_cfg = sim_cfg.get("mujoco", {})
+    if isinstance(mujoco_cfg, dict) and "timestep" in mujoco_cfg:
+      timestep = float(mujoco_cfg["timestep"])
+    else:
+      timestep = float(sim_cfg.get("timestep", 0.01))
   config["ctrl_dt"] = decimation * timestep
 
   observations = env_cfg.get("observations", {})
@@ -298,6 +468,7 @@ def _build_config(run_dir: str, env_cfg: dict[str, Any] | None) -> dict[str, Any
       if history_len is not None:
         config["history_len"] = history_len
 
+  config.update(_build_policy_identity(env_cfg))
   return config
 
 
@@ -315,6 +486,7 @@ def main() -> None:
   run_dir = os.path.dirname(checkpoint_path)
   agent_cfg = _load_yaml(os.path.join(run_dir, "params", "agent.yaml"))
   env_cfg = _load_yaml(os.path.join(run_dir, "params", "env.yaml"))
+  config = _build_config(run_dir, env_cfg)
 
   print(f"Loading checkpoint: {checkpoint_path}")
   ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
@@ -351,8 +523,12 @@ def main() -> None:
   actor.eval()
 
   if arch["state_dependent_std"]:
-    # MLP outputs [batch, 2, action_dim]; slice to keep only the mean.
-    actor = nn.Sequential(actor, _MeanSliceDeterministicOutput())
+    actor = nn.Sequential(
+      actor,
+      HeteroscedasticGaussianDistribution(
+        arch["actor_output_dim"][1]
+      ).as_deterministic_output_module(),
+    )
   exporter = _StandaloneExporter(normalizer, actor)
   exporter.eval()
 
@@ -372,9 +548,11 @@ def main() -> None:
   )
 
   data_path = onnx_path + ".data"
-  if os.path.exists(data_path):
-    model = onnx.load(onnx_path, load_external_data=True)
-    onnx.save(model, onnx_path, save_as_external_data=False)
+  had_external_data = os.path.exists(data_path)
+  model = onnx.load(onnx_path, load_external_data=True)
+  _set_policy_identity_metadata(model, _policy_identity_from_config(config))
+  onnx.save(model, onnx_path, save_as_external_data=False)
+  if had_external_data:
     os.remove(data_path)
     print("  Merged external data into single file")
 
@@ -392,7 +570,6 @@ def main() -> None:
   max_abs = np.max(np.abs(result))
   print(f"  zero-input max|output|: {max_abs:.6f}")
 
-  config = _build_config(run_dir, env_cfg)
   config_path = os.path.join(run_dir, "config.json")
   with open(config_path, "w") as f:
     json.dump(config, f, indent=2)

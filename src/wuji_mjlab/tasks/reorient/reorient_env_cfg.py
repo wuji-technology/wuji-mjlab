@@ -1,14 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Wuji Technology Co., Ltd.
-"""Reorient environment configuration for Wuji Hand.
-
-This module is a thin assembler: ``make_reorient_env_cfg`` calls the
-per-group ``build_*`` helpers in :mod:`wuji_mjlab.tasks.reorient.reorient_terms`
-and wires them into a single :class:`ManagerBasedRlEnvCfg`. The task design
-(sensors, rewards, DR events, play-mode overrides) lives in
-``reorient_terms``; robot-specific entity bindings live in
-``config/<robot>/env_cfgs.py``.
-"""
+"""Reorient environment configuration for Wuji Hand."""
 
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.scene import SceneCfg
@@ -16,7 +8,14 @@ from mjlab.sim import MujocoCfg, SimulationCfg
 from mjlab.terrains import TerrainEntityCfg
 from mjlab.viewer import ViewerConfig
 
+from wuji_mjlab.tasks.reorient.reorient_constants import REORIENT_PALM_NORMAL_AXIS
 from wuji_mjlab.tasks.reorient.reorient_terms import (
+  HAND1_DISTAL_FINGER_OBJECT_BODY_NAMES,
+  HAND1_FINGER_CONTACT_PARAM_GEOMS,
+  HAND1_GEOM_SIZE_DR_GEOMS,
+  HAND1_SOFT_PAD_GEOMS,
+  HAND1_TIP_COLLISION_GEOMS,
+  HAND1_TIP_CONTACT_BODY_NAMES,
   build_reorient_actions,
   build_reorient_commands,
   build_reorient_curriculum,
@@ -28,14 +27,12 @@ from wuji_mjlab.tasks.reorient.reorient_terms import (
   build_reorient_terminations,
 )
 
-# Obs history window (5 policy + 5 critic shared terms + 3 privileged terms)
 _HISTORY_LENGTH = 3
 
 TIP_SITE_NAMES = (".*_finger[1-5]_tip",)
 
 TIP_BODY_NAMES = (".*_finger[1-5]_link4",)
 
-TIP_COLLISION_GEOMS = (".*_finger[1-5]_link4_col",)
 
 UNDESIRED_OBJECT_CONTACT_BODIES = (
   ".*_palm_link",
@@ -53,10 +50,6 @@ UNDESIRED_OBJECT_CONTACT_BODIES = (
   ".*_finger5_link2",
 )
 
-# Events removed in play (evaluation) mode so the policy is exercised against
-# nominal physics rather than the training-time randomization / disturbance
-# schedule. Names not present in the current cfg are tolerated via
-# ``pop(name, None)``.
 _PLAY_DISABLED_EVENTS = frozenset(
   {
     "object_velocity_disturbance",
@@ -64,17 +57,13 @@ _PLAY_DISABLED_EVENTS = frozenset(
     "reset_object_disturbance_force",
     "object_com",
     "robot_friction",
-    "friction_curriculum_event",
     "robot_geom_size",
-    "geom_size_curriculum_event",
     "contact_params_palm_thumb",
     "contact_params_fingers",
     "object_size",
     "object_mass",
     "pd_gains",
-    "robot_dof_damping",
     "robot_dof_armature",
-    "robot_dof_frictionloss",
     "encoder_bias",
     "robot_link_inertia",
     "robot_link_mass",
@@ -83,32 +72,55 @@ _PLAY_DISABLED_EVENTS = frozenset(
 
 
 def make_reorient_env_cfg(
-  play: bool = False, num_envs: int = 8192
+  play: bool = False,
+  num_envs: int = 8192,
+  palm_subtree_body: str = "right_palm_link",
+  soft_pad_geoms: tuple[str, ...] = HAND1_SOFT_PAD_GEOMS,
+  geom_size_dr_geoms: tuple[str, ...] | None = HAND1_GEOM_SIZE_DR_GEOMS,
+  tip_collision_geoms: tuple[str, ...] = HAND1_TIP_COLLISION_GEOMS,
+  tip_contact_body_names: tuple[str, ...] = HAND1_TIP_CONTACT_BODY_NAMES,
+  distal_finger_object_body_names: tuple[
+    str, ...
+  ] = HAND1_DISTAL_FINGER_OBJECT_BODY_NAMES,
+  finger_contact_param_geoms: tuple[str, ...] = HAND1_FINGER_CONTACT_PARAM_GEOMS,
+  cage_up_axis: int = REORIENT_PALM_NORMAL_AXIS,
+  robot_tilt_pivot_in_root: tuple[float, float, float] | None = None,
 ) -> ManagerBasedRlEnvCfg:
   """Create Reorient task configuration.
 
   Args:
-    play: If True, switch to evaluation defaults (small num_envs, longer
-      episode, debug viz, no policy obs noise, all startup DR / interval
-      disturbance events stripped, curriculum cleared).
-    num_envs: Parallel-env count for the training scene. Ignored when
-      ``play=True`` (play mode forces a tiny scene).
-  """
+    play: If True, switch to evaluation defaults (small num_envs, longer episode, debug viz, no policy obs noise, all startup DR / interval disturbance events stripped, curriculum cleared).
+    geom_size_dr_geoms: Pass ``None`` for mesh collision geoms; ``randomize_geom_size_uniform`` only supports primitives.
+    cage_up_axis: Palm-frame axis aligned with the hand's surface normal.
+    robot_tilt_pivot_in_root: Wuji Hand 2's mount point in its palm-root frame; reset pitch rotates about world Y through that point when set."""
   observations = build_reorient_observations(
     history_length=_HISTORY_LENGTH,
     tip_body_names=TIP_BODY_NAMES,
   )
   actions = build_reorient_actions()
   commands = build_reorient_commands()
-  events = build_reorient_events()
-  rewards = build_reorient_rewards(tip_site_names=TIP_SITE_NAMES)
+  events = build_reorient_events(
+    soft_pad_geoms=soft_pad_geoms,
+    geom_size_dr_geoms=geom_size_dr_geoms,
+    finger_contact_param_geoms=finger_contact_param_geoms,
+    robot_tilt_pivot_in_root=robot_tilt_pivot_in_root,
+  )
+  rewards = build_reorient_rewards(
+    tip_site_names=TIP_SITE_NAMES,
+    cage_up_axis=cage_up_axis,
+  )
   terminations = build_reorient_terminations()
   curriculum = build_reorient_curriculum()
-  metrics = build_reorient_metrics()
+  metrics = build_reorient_metrics(
+    tip_site_names=TIP_SITE_NAMES, palm_normal_axis=cage_up_axis
+  )
   sensors = build_reorient_sensors(
-    tip_collision_geoms=TIP_COLLISION_GEOMS,
+    tip_collision_geoms=tip_collision_geoms,
     tip_body_names=TIP_BODY_NAMES,
+    distal_finger_object_body_names=distal_finger_object_body_names,
+    tip_contact_body_names=tip_contact_body_names,
     undesired_object_contact_bodies=UNDESIRED_OBJECT_CONTACT_BODIES,
+    palm_subtree_body=palm_subtree_body,
   )
 
   cfg = ManagerBasedRlEnvCfg(
@@ -154,6 +166,8 @@ def make_reorient_env_cfg(
     cfg.episode_length_s = 60.0
     cfg.commands["reorient_command"].debug_vis = True
     cfg.observations["policy"].enable_corruption = False
+    for name in ("cube_pos_in_tag", "cube_ori_error"):
+      cfg.observations["policy"].terms[name].params["injection_prob"] = 0.0
     for key in _PLAY_DISABLED_EVENTS:
       cfg.events.pop(key, None)
     cfg.curriculum.clear()

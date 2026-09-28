@@ -2,14 +2,25 @@
 # Copyright 2026 Wuji Technology Co., Ltd.
 from __future__ import annotations
 
+import warnings
+from contextlib import nullcontext
 from types import SimpleNamespace
 
+import mujoco
 import numpy as np
+import pytest
 import torch
+import viser
+from mjlab.envs import ManagerBasedRlEnv
+from mjlab.rl import RslRlVecEnvWrapper
+from mjlab.tasks.registry import load_env_cfg
+from mjlab.viewer import ViserPlayViewer
+from mjlab.viewer.native.visualizer import MujocoNativeDebugVisualizer
 from wuji_mjlab.tasks.reorient import mdp as reorient_mdp
 from wuji_mjlab.tasks.reorient.config.wuji_hand.env_cfgs import (
   wuji_hand_reorient_env_cfg,
 )
+from wuji_mjlab.tasks.reorient.mdp.cage import CageEscapePenalty
 from wuji_mjlab.tasks.reorient.mdp.command_visualization import (
   ReorientCommandVisualization,
   draw_reorient_frame_triads,
@@ -68,7 +79,6 @@ def test_set_goal_mocap_places_goal_visualization_above_current_cube():
   scene = _StubScene(cube_pos=np.array([0.12, -0.07, 0.63], dtype=np.float64))
   goal_quat = np.array([0.5, 0.5, 0.5, 0.5], dtype=np.float64)
 
-  # _StubScene is intentionally minimal and structurally compatible with SceneMetadata.
   set_goal_mocap(scene, goal_quat)  # type: ignore[arg-type]
 
   np.testing.assert_allclose(
@@ -101,6 +111,45 @@ def test_format_reorient_status_markdown_shows_ori_error_and_success():
   assert "30.0 deg" in got
   assert "success" in got
   assert "True" in got
+
+
+def test_command_gui_accepts_viewer_callbacks_and_displays_status():
+  from wuji_mjlab.tasks.reorient.mdp.commands import InHandReorientCommand
+
+  markdown = SimpleNamespace(content="")
+  server = SimpleNamespace(
+    gui=SimpleNamespace(
+      add_folder=lambda name: nullcontext(),
+      add_markdown=lambda text: markdown,
+    )
+  )
+  command = SimpleNamespace(
+    _visualization=ReorientCommandVisualization(entity_name="object"),
+    num_envs=1,
+    _policy_status_for_env=lambda idx: (np.pi / 6, True),
+  )
+  InHandReorientCommand.create_gui(
+    command,
+    "reorient",
+    server,
+    lambda: 0,
+    on_change=lambda: None,
+    request_action=lambda name, payload: None,
+  )
+  assert "30.0 deg" in markdown.content
+  assert "True" in markdown.content
+
+
+def test_cage_debug_visualization_can_be_disabled_by_viewer():
+  from wuji_mjlab.tasks.reorient.mdp.cage import CageEscapePenalty
+
+  term = CageEscapePenalty(
+    SimpleNamespace(weight=-1.0, params={}),
+    SimpleNamespace(num_envs=1, device="cpu"),
+  )
+  assert term._debug_vis_enabled is True
+  term._debug_vis_enabled = False
+  term.debug_vis(None)  # Disabled visualization must not access the scene.
 
 
 def test_reorient_status_color_rgba_maps_success_to_green_and_failure_to_red():
@@ -152,16 +201,37 @@ def test_draw_reorient_frame_triads_adds_palm_and_tag_frames():
     [[0.1, 0.2, 0.3, 1.0, 0.0, 0.0, 0.0]],
     dtype=torch.float32,
   )
+  tag_pose_w = torch.tensor(
+    [[0.11, 0.19, 0.32, 1.0, 0.0, 0.0, 0.0]],
+    dtype=torch.float32,
+  )
 
   draw_reorient_frame_triads(
     visualizer=visualizer,
     num_envs=1,
     palm_pose_w=palm_pose_w,
+    tag_pose_w=tag_pose_w,
   )
 
   assert len(visualizer.frames) == 2
   assert visualizer.frames[0]["label"] == "palm_frame_env0"
   assert visualizer.frames[1]["label"] == "tag_frame_env0"
+
+
+def test_ghost_goal_resolves_live_cube_arucocube_box():
+  import mujoco
+  from wuji_mjlab.tasks.reorient.tooling.scene_builder import build_reorient_scene
+
+  model = build_reorient_scene(hand="hand2", hand_side="right").model
+  viz = ReorientCommandVisualization(entity_name="object")
+
+  assert viz._ensure_ghost_material(model) is True
+  expected_mat = mujoco.mj_name2id(
+    model, mujoco.mjtObj.mjOBJ_MATERIAL, "object/arucocube"
+  )
+  assert expected_mat >= 0
+  assert viz.ghost_mat_id == expected_mat
+  assert np.allclose(viz.ghost_box_size, [0.027, 0.027, 0.027], atol=1e-4)
 
 
 def test_visualization_adapter_owns_gui_refresh_state():
@@ -179,3 +249,145 @@ def test_visualization_adapter_owns_gui_refresh_state():
 
   assert "45.0 deg" in markdown.content
   assert "True" in markdown.content
+
+
+@pytest.fixture(scope="module")
+def native_play_env():
+  cfg = load_env_cfg("WujiHand2_Reorient_50Hz", play=True)
+  cfg.seed = 0
+  cfg.scene.num_envs = 1
+  env = ManagerBasedRlEnv(cfg=cfg, device="cpu", render_mode=None)
+  try:
+    env.reset()
+    yield env
+  finally:
+    env.close()
+
+
+@pytest.mark.parametrize("decoration", ["ghost", "cage"])
+def test_native_play_debug_visuals(native_play_env, decoration):
+  env = native_play_env
+  model = env.sim.mj_model
+  data = mujoco.MjData(model)
+  mujoco.mj_forward(model, data)
+  scene = mujoco.MjvScene(model, maxgeom=2048)
+  mujoco.mjv_updateScene(
+    model,
+    data,
+    mujoco.MjvOption(),
+    mujoco.MjvPerturb(),
+    mujoco.MjvCamera(),
+    mujoco.mjtCatBit.mjCAT_ALL,
+    scene,
+  )
+  initial_ngeom = scene.ngeom
+  visualizer = MujocoNativeDebugVisualizer(scene, model, env_idx=0)
+
+  env.update_visualizers(visualizer)
+
+  boxes = [
+    geom
+    for geom in scene.geoms[initial_ngeom : scene.ngeom]
+    if geom.type == mujoco.mjtGeom.mjGEOM_BOX
+    and geom.category == mujoco.mjtCatBit.mjCAT_DECOR
+  ]
+  if decoration == "ghost":
+    command = env.command_manager.get_term("reorient_command")
+    expected_mat = mujoco.mj_name2id(
+      model, mujoco.mjtObj.mjOBJ_MATERIAL, "object/arucocube"
+    )
+    assert command._visualization.ghost_mat_id == expected_mat >= 0
+    ghosts = [geom for geom in boxes if geom.matid == expected_mat]
+    assert len(ghosts) == 1
+    expected_pos = command.object.data.root_link_pos_w[0].cpu().numpy().copy()
+    expected_pos[2] += 0.15
+    np.testing.assert_allclose(ghosts[0].pos, expected_pos, atol=1e-6)
+    expected_rotation = np.empty(9)
+    mujoco.mju_quat2Mat(expected_rotation, command.goal_quat_w[0].cpu().numpy())
+    np.testing.assert_allclose(
+      ghosts[0].mat, expected_rotation.reshape(3, 3), atol=1e-6
+    )
+    np.testing.assert_allclose(ghosts[0].size, [0.027, 0.027, 0.027], atol=1e-4)
+  else:
+    cages = [geom for geom in boxes if np.isclose(geom.rgba[3], 0.25)]
+    assert len(cages) == 1
+    assert np.all(cages[0].size > 0)
+
+
+def test_unsupported_visualizer_warns_once(native_play_env):
+  class UnsupportedVisualizer(_StubVisualizer):
+    pass
+
+  command = native_play_env.command_manager.get_term("reorient_command")
+  visualizer = UnsupportedVisualizer()
+  with pytest.warns(RuntimeWarning, match="UnsupportedVisualizer"):
+    command._debug_vis_impl(visualizer)
+  with warnings.catch_warnings(record=True) as caught:
+    warnings.simplefilter("always")
+    command._debug_vis_impl(visualizer)
+  assert not caught
+
+
+def test_native_goal_without_material_warns_once():
+  model = mujoco.MjModel.from_xml_string("<mujoco/>")
+  scene = mujoco.MjvScene(model, maxgeom=32)
+  visualizer = MujocoNativeDebugVisualizer(scene, model, env_idx=0)
+  visualization = ReorientCommandVisualization(entity_name="object")
+  pose = torch.tensor([[0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]])
+  kwargs = dict(
+    visualizer=visualizer,
+    num_envs=1,
+    palm_pose_w=pose,
+    tag_pose_w=pose,
+    object_pos_w=pose[:, :3],
+    goal_quat_w=pose[:, 3:],
+    policy_status_for_env=lambda _: (0.0, True),
+  )
+  with pytest.warns(RuntimeWarning, match="material"):
+    visualization.draw_debug_visuals(**kwargs)
+  with warnings.catch_warnings(record=True) as caught:
+    warnings.simplefilter("always")
+    visualization.draw_debug_visuals(**kwargs)
+  assert not caught
+
+
+def test_viser_command_gui_allows_simulation_steps(native_play_env):
+  env = native_play_env
+  server = viser.ViserServer(host="localhost", port=0)
+  viewer = ViserPlayViewer(
+    RslRlVecEnvWrapper(env),
+    lambda _: torch.zeros((1, env.action_manager.total_action_dim)),
+    viser_server=server,
+  )
+  start_time = env.sim.data.time[0].item()
+  try:
+    viewer.run(num_steps=2)
+  except Exception:
+    viewer.close()
+    raise
+  finally:
+    server.stop()
+  assert env.sim.data.time[0].item() >= start_time + 2 * env.step_dt - 1e-6
+  assert torch.isfinite(env.scene["object"].data.root_link_pos_w).all()
+
+
+def test_cage_debug_switch_changes_geometry_without_reward_state(native_play_env):
+  env = native_play_env
+  cage = next(
+    func
+    for _, func in env.reward_manager.get_visualizable_terms()
+    if isinstance(func, CageEscapePenalty)
+  )
+  model = env.sim.mj_model
+  scene = mujoco.MjvScene(model, maxgeom=32)
+  visualizer = MujocoNativeDebugVisualizer(scene, model, env_idx=0)
+  counter = cage._penalty_counter.clone()
+  try:
+    for enabled, expected_boxes in ((False, 0), (True, 1), (False, 0)):
+      cage._debug_vis_enabled = enabled
+      scene.ngeom = 0
+      cage.debug_vis(visualizer)
+      assert scene.ngeom == expected_boxes
+      torch.testing.assert_close(cage._penalty_counter, counter, rtol=0, atol=0)
+  finally:
+    cage._debug_vis_enabled = True

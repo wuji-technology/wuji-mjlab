@@ -1,17 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Wuji Technology Co., Ltd.
-"""Importable core for the reorient ONNX success-rate CLI.
-
-Hosts the per-policy obs builder, ONNX path resolver, structured eval
-config/result dataclasses, and the programmatic eval entry point
-``run_eval()`` so the thin CLI wrapper at
-``scripts/eval_success_rate.py`` reduces to a few lines.
-
-The CLI script is responsible for setting any environment variables that
-must be in place before MuJoCo GL initialises (e.g. ``MUJOCO_GL``); this
-module only sets up Python state and is safe to import without spawning a
-sim.
-"""
+"""Importable core for the reorient ONNX success-rate CLI."""
 
 from __future__ import annotations
 
@@ -59,23 +48,12 @@ __all__ = [
   "main",
 ]
 
-# Resolve project root (where rsl_rl writes ``logs/`` by default).
-# parents[4] walks tooling -> reorient -> tasks -> wuji_mjlab -> src -> repo root.
 _TOOLING_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _TOOLING_DIR.parents[4]
 
 
-# =============================================================================
-# ONNX path resolution
-# =============================================================================
-
-
 def resolve_onnx_path(onnx_input: str) -> Path:
-  """Resolve ONNX path from input string.
-
-  Tries: direct path → logs/<name>/policy.onnx → logs/<task>/<name>/policy.onnx
-  → partial name match in logs tree.
-  """
+  """Resolve ONNX path from input string."""
   onnx_path = Path(onnx_input)
   if onnx_path.exists():
     return onnx_path
@@ -101,28 +79,9 @@ def resolve_onnx_path(onnx_input: str) -> Path:
   sys.exit(1)
 
 
-# =============================================================================
-# Obs builder
-# =============================================================================
-
-
 class ObsBuilder:
-  """Build observation vector with per-term history buffers.
+  """Build observation vector with per-term history buffers."""
 
-  Each term has its own history length. flatten_history_dim=True produces
-  term-major ordering: [term_A_t0..term_A_tH, term_B_t0..term_B_tH, ...]
-
-  Obs terms (matching reorient_env_cfg.py policy group):
-    1. noisy_joint_angles  (20,) × H=1 = 20   — joint_pos_limit_normalized
-    2. qpos_error          (20,) × H=1 = 20   — joint_pos_target_error
-    3. cube_pos_in_tag      (3,) × H=1 =  3   — cube_pos_in_tag (absolute tag frame)
-    4. cube_ori_error       (6,) × H=1 =  6   — goal_rot_err_6d
-    5. action_history      (20,) × H=1 = 20   — previous_raw_action
-
-  Total: 20 + 20 + 3 + 6 + 20 = 69
-  """
-
-  # (dim) per term — history_length set per-instance from training config
   _TERM_DIMS = {
     "joint_angles": 20,
     "qpos_error": 20,
@@ -132,7 +91,6 @@ class ObsBuilder:
   }
 
   def __init__(self, history_length: int = 1):
-    # (dim, H) per term — all terms share the same history at the moment
     self.TERM_SPECS = {
       name: (dim, history_length) for name, dim in self._TERM_DIMS.items()
     }
@@ -140,23 +98,14 @@ class ObsBuilder:
     self._init_buffers()
 
   def _init_buffers(self) -> None:
-    """Create empty deque buffers for each term.
-
-    The first post-reset frame is backfilled across the whole history,
-    matching mjlab CircularBuffer.append() semantics.
-    """
     for name, (_dim, H) in self.TERM_SPECS.items():
       self._buffers[name] = deque(maxlen=H)
 
   def reset(self) -> None:
-    """Clear all buffers.
-
-    The next build() call backfills each term history with that first frame.
-    """
+    """Clear all buffers."""
     self._init_buffers()
 
   def _append_with_backfill(self, name: str, value: np.ndarray) -> None:
-    """Append a term value, backfilling first frame across history."""
     value = np.asarray(value, dtype=np.float32)
     buf = self._buffers[name]
     history_len = self.TERM_SPECS[name][1]
@@ -178,40 +127,28 @@ class ObsBuilder:
   ) -> np.ndarray:
     """Compute current obs terms, push into history, return flattened obs.
 
-    CircularBuffer.buffer returns chronological order (oldest → newest),
-    which matches deque's natural iteration order.
-
     Args:
-        last_action: Raw action from the previous policy step. This matches
-            training's ``previous_raw_action`` observation term semantics.
+      last_action: Raw action from the previous policy step.
     """
-    # Compute raw term values
     joint_angles = compute_joint_pos_normalized(scene)
     qpos_error = compute_joint_pos_target_error(scene, prev_target)
     cube_pos_in_tag = compute_cube_pos_in_tag(scene)
     cube_ori_error = compute_cube_ori_error_6d(scene, goal_quat)
     action_obs = last_action.astype(np.float32)
 
-    # Push into history buffers (append = newest at end)
     self._append_with_backfill("joint_angles", joint_angles)
     self._append_with_backfill("qpos_error", qpos_error)
     self._append_with_backfill("cube_pos_in_tag", cube_pos_in_tag)
     self._append_with_backfill("cube_ori_error", cube_ori_error)
     self._append_with_backfill("action_history", action_obs)
 
-    # Flatten: term-major, oldest → newest within each term
     parts = []
     for name in self.TERM_SPECS:
       buf = self._buffers[name]
-      for obs_t in buf:  # deque iterates oldest → newest
+      for obs_t in buf:
         parts.append(obs_t)
 
     return np.concatenate(parts).astype(np.float32)
-
-
-# =============================================================================
-# Structured config / result dataclasses
-# =============================================================================
 
 
 @dataclass(frozen=True)
@@ -231,6 +168,9 @@ class EvalConfig:
   cube_edge_m: float | None = None
   json_output: Path | None = None
   warmup_time_s: float = 0.4
+  hand: str = "hand1"
+  hand_side: str = "right"
+  history_len: int | None = None
 
 
 @dataclass(frozen=True)
@@ -274,6 +214,9 @@ class EvalResult:
         "cube_edge_m": cfg.cube_edge_m,
         "json_output": str(cfg.json_output) if cfg.json_output is not None else None,
         "warmup_time_s": cfg.warmup_time_s,
+        "hand": cfg.hand,
+        "hand_side": cfg.hand_side,
+        "history_len": cfg.history_len,
       },
       "onnx_path_resolved": str(self.onnx_path_resolved),
       "success_rate": self.success_rate,
@@ -297,49 +240,53 @@ class EvalResult:
     }
 
 
-# =============================================================================
-# Programmatic eval entry
-# =============================================================================
+def _output_dir(config: EvalConfig, onnx_path: Path) -> Path:
+  return (
+    config.json_output.parent if config.json_output is not None else onnx_path.parent
+  )
 
 
 def run_eval(config: EvalConfig) -> EvalResult:
-  """Pure programmatic eval entry. Spawns mjlab/mujoco state internally."""
-  # ----- Resolve ONNX path and load config -----
+  """Pure programmatic eval entry."""
   onnx_path = resolve_onnx_path(str(config.onnx_path))
   train_config = load_config(onnx_path.parent)
 
-  # ----- Cube size: explicit override > train_config["cube_edge_m"] > scene default (54mm) -----
   cube_edge_m = (
     config.cube_edge_m
     if config.cube_edge_m is not None
     else train_config.get("cube_edge_m")
   )
 
-  # ----- Build scene -----
   sim_dt = train_config.get("sim_dt", 0.01)
   ctrl_dt = train_config.get("ctrl_dt", 0.05)
-  scene = build_reorient_scene(sim_dt=sim_dt, ctrl_dt=ctrl_dt, cube_edge_m=cube_edge_m)
+  scene = build_reorient_scene(
+    sim_dt=sim_dt,
+    ctrl_dt=ctrl_dt,
+    cube_edge_m=cube_edge_m,
+    hand=config.hand,
+    hand_side=config.hand_side,
+  )
 
-  # ----- Load ONNX policy -----
   print(f"Loading ONNX model: {onnx_path}")
   session = ort.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"])
   input_name = session.get_inputs()[0].name
   output_names = [o.name for o in session.get_outputs()]
   onnx_obs_size = session.get_inputs()[0].shape[1]
 
-  # ----- Determine parameters from config -----
   action_scale = config.action_scale or train_config.get("action_scale", 0.5)
   ema_alpha = config.ema_alpha or train_config.get("ema_alpha", 0.5)
-  history_len = train_config.get("history_len", 1)
+  history_len = (
+    config.history_len
+    if config.history_len is not None
+    else train_config.get("history_len", 1)
+  )
 
-  # Validate obs size
   obs_builder = ObsBuilder(history_length=history_len)
   expected_obs = obs_builder.obs_size
   if expected_obs != onnx_obs_size:
     print(f"ERROR: Expected obs size {expected_obs} but ONNX expects {onnx_obs_size}.")
     sys.exit(1)
 
-  # ----- Eval parameters -----
   num_trials = config.num_trials
   trial_timeout = config.trial_timeout
   success_threshold = config.success_threshold
@@ -347,12 +294,9 @@ def run_eval(config: EvalConfig) -> EvalResult:
   goal_switch_delay = config.goal_switch_delay
   warmup_time_s = config.warmup_time_s
 
-  # Drop detection: convert relative offset to absolute z threshold.
-  # The mjlab hand sits at z=0.5 with a ground plane at z=0 that catches the
-  # cube, so we use: default_cube_z + drop_height (e.g. 0.52 + (-0.15) = 0.37).
+  # drop_height is relative to the resting cube z, not an absolute world z.
   drop_z_threshold = scene.default_cube_pos[2] + config.drop_height
 
-  # ----- Print config -----
   print(f"\n{'=' * 60}")
   print("Automated Success Rate Evaluation (mjlab)")
   print(f"{'=' * 60}")
@@ -382,7 +326,6 @@ def run_eval(config: EvalConfig) -> EvalResult:
 
   time.sleep(0.5)
 
-  # ----- Statistics -----
   successes = 0
   drops = 0
   timeouts_count = 0
@@ -391,21 +334,21 @@ def run_eval(config: EvalConfig) -> EvalResult:
 
   display = EvalDisplay()
 
-  # ----- Cube motion log -----
-  motion_log_path = onnx_path.parent / "cube_motion_log.csv"
+  output_dir = _output_dir(config, onnx_path)
+  output_dir.mkdir(parents=True, exist_ok=True)
+  motion_log_path = output_dir / "cube_motion_log.csv"
   motion_log = open(motion_log_path, "w")
   motion_log.write("time,trial,linvel,linacc,angvel,angacc\n")
   gravity = scene.model.opt.gravity
   print(f"Cube motion log: {motion_log_path}")
 
-  # ----- Helper: run a single trial step -----
   def run_policy_step(
     goal_quat: np.ndarray,
     prev_target: np.ndarray,
     last_action: np.ndarray,
     episode_step: int,
   ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """One control step: build obs → infer → apply action. Returns (action, new_prev_target, obs)."""
+    """One control step: build obs → infer → apply action."""
     obs = obs_builder.build(scene, prev_target, goal_quat, last_action)
     onnx_input = {input_name: obs.reshape(1, -1)}
     action = session.run(output_names, onnx_input)[0][0]
@@ -420,12 +363,10 @@ def run_eval(config: EvalConfig) -> EvalResult:
     )
     return action, new_target, obs
 
-  # ----- Run evaluation -----
   def run_eval_loop(viewer=None):
     nonlocal successes, drops, timeouts_count, last_result_str
 
     need_reset = True
-    # Persistent state across trials (carry forward on success, reset on drop/timeout)
     prev_target = scene.default_joint_pos.copy()
     last_action = np.zeros(20, dtype=np.float32)
     episode_step = 0
@@ -435,7 +376,6 @@ def run_eval(config: EvalConfig) -> EvalResult:
         print("\nViewer closed. Stopping evaluation.")
         break
 
-      # Full reset on drop/timeout (first trial is always need_reset=True)
       if need_reset:
         reset_scene(scene)
         obs_builder.reset()
@@ -443,7 +383,6 @@ def run_eval(config: EvalConfig) -> EvalResult:
         last_action = np.zeros(20, dtype=np.float32)
         episode_step = 0
 
-      # Set random goal (>90 deg from current cube orientation)
       current_cube_quat = scene.cube_quat
       goal_q = random_quat_uniform()
       for _ in range(1000):
@@ -453,7 +392,6 @@ def run_eval(config: EvalConfig) -> EvalResult:
       set_goal_mocap(scene, goal_q)
       mujoco.mj_forward(scene.model, scene.data)
 
-      # Per-trial tracking (always reset)
       trial_start_sim = scene.data.time
       trial_start_wall = time.time()
       result = "timeout"
@@ -462,7 +400,7 @@ def run_eval(config: EvalConfig) -> EvalResult:
       hold_state = HoldState()
       time_to_first_success_s: float | None = None
       goal_reaches = 0
-      was_above_threshold = True  # for rising-edge goal reach counting
+      was_above_threshold = True
 
       while True:
         if viewer is not None and not viewer.is_running():
@@ -470,12 +408,10 @@ def run_eval(config: EvalConfig) -> EvalResult:
 
         sim_elapsed = scene.data.time - trial_start_sim
 
-        # Timeout check
         if sim_elapsed >= trial_timeout:
           result = "timeout"
           break
 
-        # Policy step
         action, prev_target, obs = run_policy_step(
           goal_q,
           prev_target,
@@ -485,20 +421,16 @@ def run_eval(config: EvalConfig) -> EvalResult:
         last_action = action.copy()
         episode_step += 1
 
-        # Physics
         for _ in range(scene.n_substeps):
           mujoco.mj_step(scene.model, scene.data)
 
-        # Keep goal visualization directly above the live cube.
         set_goal_mocap(scene, goal_q)
 
-        # Check drop
         cube_z = scene.cube_pos[2]
         if cube_z < drop_z_threshold:
           result = "drop"
           break
 
-        # Check success (two-phase state machine)
         current_ori_error = quat_error_magnitude(scene.cube_quat, goal_q)
         min_ori_error = min(min_ori_error, current_ori_error)
         hold_state, hold_events = check_hold(
@@ -508,7 +440,6 @@ def run_eval(config: EvalConfig) -> EvalResult:
           success_hold_steps=success_hold_steps,
           goal_switch_delay=goal_switch_delay,
         )
-        # Count goal reaches as rising-edge crossings into the threshold.
         if current_ori_error < success_threshold:
           if was_above_threshold:
             goal_reaches += 1
@@ -521,7 +452,6 @@ def run_eval(config: EvalConfig) -> EvalResult:
           result = "success"
           break
 
-        # Log cube motion
         cvel = scene.data.cvel[scene.cube_body_id]
         cacc = scene.data.cacc[scene.cube_body_id]
         lv = np.linalg.norm(cvel[3:])
@@ -532,7 +462,6 @@ def run_eval(config: EvalConfig) -> EvalResult:
           f"{scene.data.time:.4f},{trial + 1},{lv:.6f},{la:.4f},{av:.6f},{aa:.4f}\n"
         )
 
-        # Contact info and display
         contacts = get_contact_info(scene.model, scene.data)
         display.update(
           trial=trial,
@@ -555,7 +484,6 @@ def run_eval(config: EvalConfig) -> EvalResult:
           ),
         )
 
-        # Real-time pacing (only with viewer)
         if viewer is not None:
           target_wall = trial_start_wall + (scene.data.time - trial_start_sim)
           sleep_time = target_wall - time.time()
@@ -563,11 +491,9 @@ def run_eval(config: EvalConfig) -> EvalResult:
             time.sleep(sleep_time)
           viewer.sync()
 
-      # Skip recording if viewer closed mid-trial
       if viewer is not None and not viewer.is_running() and result == "timeout":
         break
 
-      # Record result
       if result == "success":
         successes += 1
         need_reset = False
@@ -590,7 +516,6 @@ def run_eval(config: EvalConfig) -> EvalResult:
         )
       )
 
-      # Force display update showing result
       display.update(
         trial=trial,
         num_trials=num_trials,
@@ -613,18 +538,15 @@ def run_eval(config: EvalConfig) -> EvalResult:
       if viewer is not None and viewer.is_running():
         viewer.sync()
 
-  # ----- Launch -----
   if config.no_viewer:
     run_eval_loop(viewer=None)
   else:
     with mujoco.viewer.launch_passive(scene.model, scene.data) as viewer:
       run_eval_loop(viewer=viewer)
 
-  # ===== Close motion log =====
   motion_log.close()
   print(f"\nCube motion log saved to: {motion_log_path}")
 
-  # ===== Aggregate rates =====
   completed = max(len(trial_outcomes), 1)
   success_rate = successes / completed
   drop_rate = drops / completed
@@ -646,8 +568,7 @@ def run_eval(config: EvalConfig) -> EvalResult:
     else 0.0
   )
 
-  # ===== Side-effect: write eval_results.json next to the policy =====
-  legacy_results_path = onnx_path.parent / "eval_results.json"
+  legacy_results_path = output_dir / "eval_results.json"
   legacy_payload = {
     "onnx_path": str(onnx_path),
     "num_trials": num_trials,
@@ -690,11 +611,6 @@ def run_eval(config: EvalConfig) -> EvalResult:
     trials=trial_outcomes,
     train_config=train_config,
   )
-
-
-# =============================================================================
-# CLI plumbing
-# =============================================================================
 
 
 def _parse_cli_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -755,9 +671,43 @@ def _parse_cli_args(argv: list[str] | None = None) -> argparse.Namespace:
     "--json-output",
     type=Path,
     default=None,
-    help="If set, write structured EvalResult to this path as JSON.",
+    help=(
+      "Write structured JSON here and companion CSV/results in the same directory. "
+      "Without this option, companion files are written next to the ONNX model."
+    ),
   )
-  return parser.parse_args(argv)
+  parser.add_argument(
+    "--hand",
+    choices=["hand1", "hand2"],
+    default="hand1",
+    help="Which hand to build the eval scene for (default: hand1).",
+  )
+  parser.add_argument(
+    "--hand-side",
+    choices=["right"],
+    default="right",
+    help="Which side of the hand (right only).",
+  )
+  parser.add_argument(
+    "--history-len",
+    type=int,
+    default=None,
+    help=(
+      "Obs history length. Must match the trained policy (hand2 = 3 → obs 207). "
+      "When unset, falls back to train_config['history_len'] then 1. A wrong "
+      "value fails loudly at the ONNX obs-size check."
+    ),
+  )
+  args = parser.parse_args(argv)
+  if args.json_output is not None and args.json_output.name in {
+    "eval_results.json",
+    "cube_motion_log.csv",
+  }:
+    parser.error(
+      f"--json-output filename {args.json_output.name!r} is reserved for "
+      "companion evaluation output; choose a different filename"
+    )
+  return args
 
 
 def _config_from_args(args: argparse.Namespace) -> EvalConfig:
@@ -774,6 +724,9 @@ def _config_from_args(args: argparse.Namespace) -> EvalConfig:
     ema_alpha=args.ema_alpha,
     cube_edge_m=args.cube_edge_m,
     json_output=args.json_output,
+    hand=args.hand,
+    hand_side=args.hand_side,
+    history_len=args.history_len,
   )
 
 
@@ -823,8 +776,7 @@ def _print_terminal_summary(result: EvalResult) -> None:
 
   print(f"{'=' * 60}")
 
-  # === Cube motion statistics (read back from CSV side-effect) ===
-  motion_log_path = result.onnx_path_resolved.parent / "cube_motion_log.csv"
+  motion_log_path = _output_dir(cfg, result.onnx_path_resolved) / "cube_motion_log.csv"
   try:
     import csv
 

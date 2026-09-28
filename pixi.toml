@@ -4,7 +4,8 @@ version = "0.1.0"
 description = "Reinforcement learning and sim-to-real deployment for the Wuji Hand dexterous manipulation platform, built on mjlab and MuJoCo Warp."
 license = "Apache-2.0"
 channels = ["https://prefix.dev/conda-forge", "nvidia"]
-platforms = ["linux-64"]
+# glibc floor: wuji_sdk ships manylinux_2_34-only wheels; the solver needs glibc>=2.34.
+platforms = [{ platform = "linux-64", glibc = "2.34" }]
 
 [dependencies]
 python = "3.11.*"
@@ -15,48 +16,75 @@ libstdcxx-ng = ">=15.2.0,<16"
 
 [pypi-options]
 index-strategy = "unsafe-best-match"
-# PyTorch official CUDA 12.8 wheels (supports Blackwell sm_120 / RTX 50 series).
-# CPU-only users / non-NVIDIA users can remove this line and pip will fall
-# back to the platform-default torch wheel from pypi.org.
+
+# The training stack. Only environments that list this feature install it, so
+# the pen-spin deploy environment stays free of torch and the CUDA libraries.
+[feature.train.pypi-options]
+# PyTorch's CUDA 12.8 index is needed for Blackwell (sm_120/RTX 50) support.
 extra-index-urls = ["https://download.pytorch.org/whl/cu128"]
+# CPU-only/non-NVIDIA users can remove this index and fall back to the default torch wheel.
 
-[pypi-options.dependency-overrides]
-rsl-rl-lib = { path = "src/wuji_rl_libs/rsl_rl", editable = true }
-
-[pypi-dependencies]
+[feature.train.pypi-dependencies]
 wuji-mjlab = { path = ".", editable = true }
-mjlab = { version = "==1.3.0", extras = ["cu128"] }
-rsl-rl-lib = { path = "src/wuji_rl_libs/rsl_rl", editable = true }
+mjlab = { version = "==1.6.0", extras = ["cu128"] }
+rsl-rl-lib = "==5.4.2"
 gym = "==0.26.2"
 omegaconf = ">=2.3.0"
 tensorboardX = ">=2.6.2"
 onnxruntime = ">=1.24.4, <2"
 torch = ">=2.7.0,<2.8"
-warp-lang = ">=1.12,<1.13"
+warp-lang = ">=1.14,<2"
 scipy = ">=1.15,<2"
 # pin <2: trimesh mesh.show() incompatible with pyglet 2.x (as of trimesh 4.12)
 pyglet = ">=1.5,<2"
 
-[tasks]
+[feature.train.tasks]
 train = { cmd = "python scripts/train/train_rsl_rl.py", description = "Train a task with rsl_rl (append --task and overrides)" }
 play = { cmd = "python scripts/play/play_rsl_rl.py", description = "Play/infer from rsl_rl checkpoint" }
-list-envs = { cmd = "python scripts/list_envs.py", description = "List registered tasks" }
+list-envs = { cmd = "python scripts/list_envs.py", description = "List Wuji tasks (pass --all to include upstream examples)" }
+export-onnx = { cmd = "python -m wuji_mjlab.rl.onnx_export", description = "Export an rsl_rl checkpoint to <run dir>/policy.onnx (append <model_N.pt>)" }
 
-# ─────────────────────── Deploy / Real-hand ───────────────────────
 
 [environments]
-default = { solve-group = "default" }
-deploy  = { features = ["deploy"], solve-group = "default" }
+default = { features = ["train"], solve-group = "default" }
+# One environment per deploy task, named `<task>-deploy`, so their dependency
+# sets can diverge as tasks are added.
+reorient-deploy = { features = ["train", "reorient-deploy"], solve-group = "default" }
+pen-spin-deploy = { features = ["pen-spin-deploy"], solve-group = "default" }
 
-[feature.deploy.pypi-dependencies]
+[feature.reorient-deploy.pypi-dependencies]
+# The deploy library itself. Declared here rather than at the top level so it
+# stays out of the training `default` environment, like the two hand SDKs below.
+wuji-reorient-deploy = { path = "deploy/reorient", editable = true }
 opencv-contrib-python = ">=4.13,<5"
 pupil-apriltags = ">=1.0"
 pyzmq = ">=27.0"
-glfw = ">=2.10"
-wujihandpy = "==1.5.1"
 pyyaml = ">=6.0"
+wujihandpy = "==1.5.1"  # gen1 driver; lazy import keeps gen2 and --mock usable without it
+wuji_sdk = "==2026.7.2"  # gen2 driver; its manylinux_2_34 wheels require the workspace glibc floor, and lazy import keeps --mock usable
+# Hikvision MVS is not on PyPI; deployment requires its vendor SDK to be installed separately.
 
-[feature.deploy.tasks]
-vision    = { cmd = "python deploy/reorient/scripts/cube_world_observer.py --preview", description = "Launch ArUco/AprilTag cube observer with OpenCV preview window (publishes cube pose on ZMQ:5555)" }
-play-real = { cmd = "python deploy/reorient/scripts/play_real.py", description = "Run sim2real control with MuJoCo mirror viewer (pass --ckpt PATH for a non-default policy)" }
-home      = { cmd = "python deploy/reorient/scripts/hand_utils.py home", description = "Reset all 20 joints to home pose" }
+[feature.pen-spin-deploy.pypi-dependencies]
+wuji-pen-spin-deploy = { path = "deploy/pen_spin", editable = true }
+onnxruntime = ">=1.24.4, <2"
+mujoco = ">=3.3, <4"
+pyzmq = ">=27.0"
+pyyaml = ">=6.0"
+opencv-contrib-python = ">=4.13,<5"
+wuji_sdk = "==2026.7.2"
+
+# Task names live in one namespace per environment, so each deploy task gets its
+# own feature + environment and these short verbs stay reusable across tasks.
+# Two features defining the same name in one environment silently shadow one of
+# them instead of erroring.
+[feature.reorient-deploy.tasks]
+vision    = { cmd = "python deploy/reorient/scripts/cube_world_observer.py --preview", description = "Launch ArUco/AprilTag cube observer with OpenCV preview window (publishes cube pose on ZMQ:5555); gen-agnostic (camera/vision only, no --gen)" }
+play-real = { cmd = "python deploy/reorient/scripts/run_policy.py", description = "Run policy + stream targets to the hand (pass -- --gen N --hand H / --mock)" }
+render    = { cmd = "python deploy/reorient/scripts/render_viewer.py", description = "Passive mirror viewer: subscribes to cube/goal/joint ZMQ and animates the hand (no hardware); pass -- --gen N --hand H" }
+home      = { cmd = "python deploy/reorient/tools/home_check.py", description = "Drive all 20 joints to the cage home pose (gen selected via -- --gen N)" }
+check     = { cmd = "python deploy/reorient/tools/check_setup.py", description = "Preflight check: deps, SDKs, policy (gen selected via -- --gen N)" }
+
+[feature.pen-spin-deploy.tasks]
+pen-observer = { cmd = "python deploy/pen_spin/scripts/pen_world_observer.py --source camera", description = "Start the pen camera observer and publish pose on ZMQ:5555" }
+pen-sim = { cmd = "python deploy/pen_spin/scripts/pen_pose_viewer.py", description = "Start the standalone MuJoCo pen viewer" }
+pen-policy = { cmd = "python -m runtime", description = "After pen-observer: start real-hand policy control with the live MuJoCo mirror (pass --policy <policy.onnx> --motion <clip.npz>; --no-sim disables the mirror)" }

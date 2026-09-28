@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Wuji Technology Co., Ltd.
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wuji-reorient-deploy"
+version = "0.1.0"
+description = "Real-robot cube-reorientation deploy library for the Wuji Hand (gen1 + gen2)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+authors = [
+    { name = "Wuji Technology Co., Ltd.", email = "support@wuji.tech" }
+]
+# Consumers choose runtime dependencies outside this package so a deploy-only
+# installation can use headless OpenCV without conflicting with the local
+# desktop-enabled pixi environment.
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["wuji_reorient_deploy*"]

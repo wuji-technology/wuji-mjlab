@@ -14,7 +14,6 @@ from pathlib import Path
 
 import mjlab
 import tyro
-
 import wuji_mjlab.tasks  # noqa: F401
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
@@ -31,6 +30,7 @@ from wuji_mjlab.utils.cli_override_utils import (
   split_special_args,
 )
 from wuji_mjlab.utils.task_cfg_utils import prepare_task_cfgs
+from wuji_mjlab.utils.train_config_utils import load_train_config
 
 
 def _cuda_device_count() -> int:
@@ -121,7 +121,17 @@ def _run_train(task_id: str, cfg: TrainConfig, log_dir: Path) -> None:
     )
     print("[INFO] Recording videos during training.")
 
-  env = RslRlVecEnvWrapper(env, clip_actions=cfg.agent.clip_actions)
+  if os.environ.get("WUJI_ACTION_DIAGNOSTICS") == "1":
+    from wuji_mjlab.rl.action_diagnostics import ActionDiagnosticsWrapper
+
+    env = ActionDiagnosticsWrapper(
+      env,
+      clip_actions=cfg.agent.clip_actions,
+      rollout_steps=cfg.agent.num_steps_per_env,
+      output_dir=log_dir / "action_diagnostics",
+    )
+  else:
+    env = RslRlVecEnvWrapper(env, clip_actions=cfg.agent.clip_actions)
 
   agent_cfg = asdict(cfg.agent)
   env_cfg = asdict(cfg.env)
@@ -183,23 +193,43 @@ def _launch_training(task_id: str, cfg: TrainConfig) -> None:
       hostnames=["localhost"],
       workers_per_host=num_gpus,
       backend=None,
-      copy_env_vars=torchrunx.DEFAULT_ENV_VARS_FOR_COPY + ("MUJOCO*",),
+      copy_env_vars=torchrunx.DEFAULT_ENV_VARS_FOR_COPY
+      + ("MUJOCO*", "WUJI_ACTION_DIAGNOSTICS"),
     ).run(_run_train, task_id, cfg, log_dir)
 
 
 def main() -> None:
   parser = argparse.ArgumentParser(add_help=False)
   parser.add_argument("--task", type=str, default=None)
+  parser.add_argument(
+    "--config",
+    type=str,
+    default=None,
+    help="Optional YAML bundling a task selection plus overrides "
+    "(schema: wuji_mjlab.utils.train_config_utils). Prefer --task for "
+    "plain task selection.",
+  )
   known, remaining = parser.parse_known_args()
 
+  config_task: str | None = None
+  config_overrides: list[str] = []
+  config_args: list[str] = []
+  if known.config is not None:
+    config_task, config_overrides, config_args = load_train_config(known.config)
+
   task_from_equals, tyro_args, overrides = split_special_args(remaining)
-  chosen_task = known.task or task_from_equals or "reorient"
+  # CLI wins over config file: config args/overrides are applied first.
+  tyro_args = config_args + tyro_args
+  overrides = config_overrides + overrides
+  chosen_task = known.task or task_from_equals or config_task or "reorient"
   task_id = resolve_task(
     chosen_task,
     task_aliases=DEFAULT_TASK_ALIASES,
     all_tasks=list_tasks(),
   )
-  prepared_env_cfg, prepared_agent_cfg = prepare_task_cfgs(task_id, overrides, play=False)
+  prepared_env_cfg, prepared_agent_cfg = prepare_task_cfgs(
+    task_id, overrides, play=False
+  )
 
   cfg = tyro.cli(
     TrainConfig,

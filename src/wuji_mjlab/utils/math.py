@@ -45,12 +45,8 @@ def tolerance(
 def random_quat_uniform(n: int, device: torch.device | str = "cpu") -> torch.Tensor:
   """Sample *n* quaternions uniformly on SO(3) using Shoemake's method.
 
-  Args:
-    n: Number of quaternions to sample.
-    device: Torch device.
-
   Returns:
-    Quaternions in (w, x, y, z) convention. Shape is (n, 4).
+    Quaternions in (w, x, y, z) convention.
   """
   u1, u2, u3 = torch.rand(3, n, device=device)
   sqrt1 = torch.sqrt(1.0 - u1)

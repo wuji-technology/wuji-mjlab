@@ -1,0 +1,226 @@
+<mujoco model="wujihand2-right">
+  <compiler angle="radian" meshdir="../meshes/right/" />
+  <option jacobian="sparse" integrator="RK4" timestep="0.002" solver="Newton" iterations="50" tolerance="1e-10" />
+  <default>
+    <joint armature="0.0002" damping="0.0" />
+  </default>
+  <asset>
+    <mesh name="r_wrist" content_type="model/stl" file="r_wrist.STL" />
+    <mesh name="r_thumb_proximal" content_type="model/stl" file="r_thumb_proximal.STL" />
+    <mesh name="r_thumb_proximal_abd" content_type="model/stl" file="r_thumb_proximal_abd.STL" />
+    <mesh name="r_thumb_middle" content_type="model/stl" file="r_thumb_middle.STL" />
+    <mesh name="r_thumb_distal" content_type="model/stl" file="r_thumb_distal.STL" />
+    <mesh name="r_thumb_tip_sensor_frame" content_type="model/stl" file="r_thumb_tip_sensor_frame.STL" />
+    <mesh name="r_index_finger_proximal" content_type="model/stl" file="r_index_finger_proximal.STL" />
+    <mesh name="r_index_finger_proximal_abd" content_type="model/stl" file="r_index_finger_proximal_abd.STL" />
+    <mesh name="r_index_finger_middle" content_type="model/stl" file="r_index_finger_middle.STL" />
+    <mesh name="r_index_finger_distal" content_type="model/stl" file="r_index_finger_distal.STL" />
+    <mesh name="r_index_finger_tip_sensor_frame" content_type="model/stl" file="r_index_finger_tip_sensor_frame.STL" />
+    <mesh name="r_middle_finger_proximal" content_type="model/stl" file="r_middle_finger_proximal.STL" />
+    <mesh name="r_middle_finger_proximal_abd" content_type="model/stl" file="r_middle_finger_proximal_abd.STL" />
+    <mesh name="r_middle_finger_middle" content_type="model/stl" file="r_middle_finger_middle.STL" />
+    <mesh name="r_middle_finger_distal" content_type="model/stl" file="r_middle_finger_distal.STL" />
+    <mesh name="r_middle_finger_tip_sensor_frame" content_type="model/stl" file="r_middle_finger_tip_sensor_frame.STL" />
+    <mesh name="r_ring_finger_proximal" content_type="model/stl" file="r_ring_finger_proximal.STL" />
+    <mesh name="r_ring_finger_proximal_abd" content_type="model/stl" file="r_ring_finger_proximal_abd.STL" />
+    <mesh name="r_ring_finger_middle" content_type="model/stl" file="r_ring_finger_middle.STL" />
+    <mesh name="r_ring_finger_distal" content_type="model/stl" file="r_ring_finger_distal.STL" />
+    <mesh name="r_ring_finger_tip_sensor_frame" content_type="model/stl" file="r_ring_finger_tip_sensor_frame.STL" />
+    <mesh name="r_pinky_proximal" content_type="model/stl" file="r_pinky_proximal.STL" />
+    <mesh name="r_pinky_proximal_abd" content_type="model/stl" file="r_pinky_proximal_abd.STL" />
+    <mesh name="r_pinky_middle" content_type="model/stl" file="r_pinky_middle.STL" />
+    <mesh name="r_pinky_distal" content_type="model/stl" file="r_pinky_distal.STL" />
+    <mesh name="r_pinky_tip_sensor_frame" content_type="model/stl" file="r_pinky_tip_sensor_frame.STL" />
+  </asset>
+  <worldbody>
+    <body name="r_wrist">
+      <inertial pos="-0.00354289960216 -0.00346747236064 -0.0356950477108" mass="0.2323" quat="0.10780268 0.69274370 0.71186097 0.04169786" diaginertia="1.55670709e-04 9.95644502e-05 7.71545957e-05" />
+      <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="r_wrist" />
+      <geom type="mesh" rgba="0.8 0.6 1 0.3" mesh="r_wrist" group="2" />
+      <body name="r_thumb_proximal" pos="0.01721 0.008138 -0.016458" quat="0.62943 -0.0606446 -0.720105 0.285638">
+        <inertial pos="0.000853657 -0.00195618 -0.00731809" quat="0.926535 0.017864 -0.0783162 -0.367534" mass="0.011" diaginertia="8.38654e-07 7.81045e-07 6.3308e-07" />
+        <joint name="r_thumb_cmc_flex" pos="0 0 0" axis="1 0 0" range="-1.187 1.291" actuatorfrcrange="-0.6 0.6" armature="0.0005" />
+        <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="r_thumb_proximal" />
+        <geom type="mesh" rgba="0.8 0.6 1 0.3" mesh="r_thumb_proximal" group="2" />
+        <body name="r_thumb_proximal_abd" pos="0.00024788 -0.00053658 -0.014754" quat="0.934711 0.0919289 0.342519 -0.0233666">
+          <inertial pos="1.27934e-05 6.47331e-06 -0.0130544" quat="0.514054 -0.00124335 -0.00239204 0.857754" mass="0.0336" diaginertia="4.2288e-06 4.08475e-06 1.2356e-06" />
+          <joint name="r_thumb_cmc_abd" pos="0 0 0" axis="0 1 0" range="-1.484 0.698" actuatorfrcrange="-0.6 0.6" armature="0.0005" />
+          <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="r_thumb_proximal_abd" />
+          <geom type="mesh" rgba="0.8 0.6 1 0.3" mesh="r_thumb_proximal_abd" group="2" />
+          <body name="r_thumb_middle" pos="0 0 -0.0325" quat="0.959136 -0.0122059 0.0418766 0.279562">
+            <inertial pos="-4.92924e-05 4.31169e-08 -0.0143056" quat="0.70627 -3.2641e-05 -3.35882e-05 0.707942" mass="0.0358" diaginertia="4.92859e-06 4.8196e-06 1.32688e-06" />
+            <joint name="r_thumb_mcp" pos="0 0 0" axis="1 0 0" range="-1.047 1.57" actuatorfrcrange="-0.3 0.3" />
+            <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="r_thumb_middle" />
+            <geom type="mesh" rgba="0.8 0.6 1 0.3" mesh="r_thumb_middle" group="2" />
+            <body name="r_thumb_distal" pos="-5e-05 0 -0.035">
+              <inertial pos="-0.000170796485333 -0.00316013482825 -0.00824529757068" mass="0.0109" quat="-0.69144904 0.09172654 0.10416649 0.70896672" diaginertia="1.20448248e-06 1.17392357e-06 2.83759818e-07" />
+              <joint name="r_thumb_ip" pos="0 0 0" axis="1 0 0" range="-1.047 1.57" actuatorfrcrange="-0.3 0.3" />
+              <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="r_thumb_distal" />
+              <geom type="mesh" rgba="0.8 0.6 1 0.3" mesh="r_thumb_distal" group="2" />
+              <body name="r_thumb_tip_sensor_frame" pos="0 0 0">
+                <inertial pos="-2.55623113024e-07 0.00176029918913 -0.0169902000178" mass="0.0063" quat="0.69415926 -0.13479497 -0.13464561 -0.69414969" diaginertia="3.99116934e-07 3.10340136e-07 2.28267626e-07" />
+                <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.55 0.78 0.95 1" mesh="r_thumb_tip_sensor_frame" />
+                <geom type="mesh" rgba="0.8 0.6 1 0.3" mesh="r_thumb_tip_sensor_frame" group="2" />
+              </body>
+              <site name="r_thumb_tip" pos="0 0 -0.02978" group="3" size="0.002" rgba="1 0 0 1" />
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="r_index_finger_proximal" pos="0.022661 -0.0033252 -0.069975" quat="0.996267 -0.0163875 -0.0693676 0.0486957">
+        <inertial pos="1.83161e-09 -0.00178137 -0.00760139" quat="0.999275 -0.0380628 0 0" mass="0.0116" diaginertia="9.19684e-07 9.08608e-07 7.88412e-07" />
+        <joint name="r_index_finger_mcp_flex" pos="0 0 0" axis="1 0 0" range="-1.047 1.57" actuatorfrcrange="-2 2" armature="0.0005" />
+        <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="r_index_finger_proximal" />
+        <geom type="mesh" rgba="0.8 0.6 1 0.3" mesh="r_index_finger_proximal" group="2" />
+        <body name="r_index_finger_proximal_abd" pos="0 -0.001201 -0.0145">
+          <inertial pos="8.04675e-08 7.30404e-07 -0.0187994" quat="0.983237 -1.60588e-05 3.84243e-06 0.18233" mass="0.0339" diaginertia="7.01589e-06 7.01555e-06 9.1448e-07" />
+          <joint name="r_index_finger_mcp_abd" pos="0 0 0" axis="0 1 0" range="-0.698 0.698" actuatorfrcrange="-0.2 0.2" />
+          <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="r_index_finger_proximal_abd" />
+          <geom type="mesh" rgba="0.8 0.6 1 0.3" mesh="r_index_finger_proximal_abd" group="2" />
+          <body name="r_index_finger_middle" pos="0 0 -0.0376">
+            <inertial pos="-5.07335e-08 -0.000247887 -0.0190348" quat="0.707235 0.0108069 -0.0107958 0.706814" mass="0.0212" diaginertia="2.47797e-06 2.40525e-06 6.52478e-07" />
+            <joint name="r_index_finger_pip" pos="0 0 0" axis="1 0 0" range="-1.047 2.094" actuatorfrcrange="-0.3 0.3" />
+            <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="r_index_finger_middle" />
+            <geom type="mesh" rgba="0.8 0.6 1 0.3" mesh="r_index_finger_middle" group="2" />
+            <body name="r_index_finger_distal" pos="0 0 -0.0295">
+              <inertial pos="0.000767405988913 -0.00278778948856 -0.00722744222281" mass="0.005" quat="0.70268251 -0.14591602 -0.05476555 -0.69422369" diaginertia="4.83270355e-07 3.88592737e-07 1.78664842e-07" />
+              <joint name="r_index_finger_dip" pos="0 0 0" axis="1 0 0" range="-1.047 1.57" actuatorfrcrange="-0.3 0.3" />
+              <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="r_index_finger_distal" />
+              <geom type="mesh" rgba="0.8 0.6 1 0.3" mesh="r_index_finger_distal" group="2" />
+              <body name="r_index_finger_tip_sensor_frame" pos="0 0 0">
+                <inertial pos="2.9515020425e-07 0.00147202588519 -0.0149386735116" mass="0.003" quat="-0.69023464 0.15336850 0.15323097 0.69034377" diaginertia="1.25973400e-07 1.00794410e-07 6.27665038e-08" />
+                <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.55 0.78 0.95 1" mesh="r_index_finger_tip_sensor_frame" />
+                <geom type="mesh" rgba="0.8 0.6 1 0.3" mesh="r_index_finger_tip_sensor_frame" group="2" />
+              </body>
+              <site name="r_index_finger_tip" pos="0 0 -0.02475" group="3" size="0.002" rgba="1 0 0 1" />
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="r_middle_finger_proximal" pos="0.00095202 -0.008303 -0.073915" quat="0.999841 -0.016952 0.00552374 -0.000264052">
+        <inertial pos="1.83161e-09 -0.00178137 -0.00760139" quat="0.999275 -0.0380628 0 0" mass="0.0116" diaginertia="9.19684e-07 9.08608e-07 7.88412e-07" />
+        <joint name="r_middle_finger_mcp_flex" pos="0 0 0" axis="1 0 0" range="-1.047 1.57" actuatorfrcrange="-2 2" armature="0.0005" />
+        <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="r_middle_finger_proximal" />
+        <geom type="mesh" rgba="0.8 0.6 1 0.3" mesh="r_middle_finger_proximal" group="2" />
+        <body name="r_middle_finger_proximal_abd" pos="0 -0.001201 -0.0145">
+          <inertial pos="8.04675e-08 7.30404e-07 -0.0187994" quat="0.983237 -1.60588e-05 3.84243e-06 0.18233" mass="0.0339" diaginertia="7.01589e-06 7.01555e-06 9.1448e-07" />
+          <joint name="r_middle_finger_mcp_abd" pos="0 0 0" axis="0 1 0" range="-0.698 0.698" actuatorfrcrange="-0.2 0.2" />
+          <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="r_middle_finger_proximal_abd" />
+          <geom type="mesh" rgba="0.8 0.6 1 0.3" mesh="r_middle_finger_proximal_abd" group="2" />
+          <body name="r_middle_finger_middle" pos="0 0 -0.0376">
+            <inertial pos="-5.07335e-08 -0.000247887 -0.0190348" quat="0.707235 0.0108069 -0.0107958 0.706814" mass="0.0212" diaginertia="2.47797e-06 2.40525e-06 6.52478e-07" />
+            <joint name="r_middle_finger_pip" pos="0 0 0" axis="1 0 0" range="-1.047 2.094" actuatorfrcrange="-0.3 0.3" />
+            <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="r_middle_finger_middle" />
+            <geom type="mesh" rgba="0.8 0.6 1 0.3" mesh="r_middle_finger_middle" group="2" />
+            <body name="r_middle_finger_distal" pos="0 0 -0.0295">
+              <inertial pos="0.000767405988913 -0.00278778948856 -0.00722744222281" mass="0.005" quat="0.70268251 -0.14591602 -0.05476555 -0.69422369" diaginertia="4.83270355e-07 3.88592737e-07 1.78664842e-07" />
+              <joint name="r_middle_finger_dip" pos="0 0 0" axis="1 0 0" range="-1.047 1.57" actuatorfrcrange="-0.3 0.3" />
+              <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="r_middle_finger_distal" />
+              <geom type="mesh" rgba="0.8 0.6 1 0.3" mesh="r_middle_finger_distal" group="2" />
+              <body name="r_middle_finger_tip_sensor_frame" pos="0 0 0">
+                <inertial pos="2.9515020425e-07 0.00147202588519 -0.0149386735116" mass="0.003" quat="-0.69023464 0.15336850 0.15323097 0.69034377" diaginertia="1.25973400e-07 1.00794410e-07 6.27665038e-08" />
+                <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.55 0.78 0.95 1" mesh="r_middle_finger_tip_sensor_frame" />
+                <geom type="mesh" rgba="0.8 0.6 1 0.3" mesh="r_middle_finger_tip_sensor_frame" group="2" />
+              </body>
+              <site name="r_middle_finger_tip" pos="0 0 -0.02475" group="3" size="0.002" rgba="1 0 0 1" />
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="r_ring_finger_proximal" pos="-0.019744 -0.0055929 -0.0654" quat="0.996897 -0.00588522 0.0709958 -0.0334777">
+        <inertial pos="1.83161e-09 -0.00178137 -0.00760139" quat="0.999275 -0.0380628 0 0" mass="0.0116" diaginertia="9.19684e-07 9.08608e-07 7.88412e-07" />
+        <joint name="r_ring_finger_mcp_flex" pos="0 0 0" axis="1 0 0" range="-1.047 1.57" actuatorfrcrange="-2 2" armature="0.0005" />
+        <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="r_ring_finger_proximal" />
+        <geom type="mesh" rgba="0.8 0.6 1 0.3" mesh="r_ring_finger_proximal" group="2" />
+        <body name="r_ring_finger_proximal_abd" pos="0 -0.001201 -0.0145">
+          <inertial pos="8.04675e-08 7.30404e-07 -0.0187994" quat="0.983237 -1.60588e-05 3.84243e-06 0.18233" mass="0.0339" diaginertia="7.01589e-06 7.01555e-06 9.1448e-07" />
+          <joint name="r_ring_finger_mcp_abd" pos="0 0 0" axis="0 1 0" range="-0.698 0.698" actuatorfrcrange="-0.2 0.2" />
+          <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="r_ring_finger_proximal_abd" />
+          <geom type="mesh" rgba="0.8 0.6 1 0.3" mesh="r_ring_finger_proximal_abd" group="2" />
+          <body name="r_ring_finger_middle" pos="0 0 -0.0376">
+            <inertial pos="-5.07335e-08 -0.000247887 -0.0190348" quat="0.707235 0.0108069 -0.0107958 0.706814" mass="0.0212" diaginertia="2.47797e-06 2.40525e-06 6.52478e-07" />
+            <joint name="r_ring_finger_pip" pos="0 0 0" axis="1 0 0" range="-1.047 2.094" actuatorfrcrange="-0.3 0.3" />
+            <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="r_ring_finger_middle" />
+            <geom type="mesh" rgba="0.8 0.6 1 0.3" mesh="r_ring_finger_middle" group="2" />
+            <body name="r_ring_finger_distal" pos="0 0 -0.0295">
+              <inertial pos="0.000767405988913 -0.00278778948856 -0.00722744222281" mass="0.005" quat="0.70268251 -0.14591602 -0.05476555 -0.69422369" diaginertia="4.83270355e-07 3.88592737e-07 1.78664842e-07" />
+              <joint name="r_ring_finger_dip" pos="0 0 0" axis="1 0 0" range="-1.047 1.57" actuatorfrcrange="-0.3 0.3" />
+              <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="r_ring_finger_distal" />
+              <geom type="mesh" rgba="0.8 0.6 1 0.3" mesh="r_ring_finger_distal" group="2" />
+              <body name="r_ring_finger_tip_sensor_frame" pos="0 0 0">
+                <inertial pos="2.9515020425e-07 0.00147202588519 -0.0149386735116" mass="0.003" quat="-0.69023464 0.15336850 0.15323097 0.69034377" diaginertia="1.25973400e-07 1.00794410e-07 6.27665038e-08" />
+                <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.55 0.78 0.95 1" mesh="r_ring_finger_tip_sensor_frame" />
+                <geom type="mesh" rgba="0.8 0.6 1 0.3" mesh="r_ring_finger_tip_sensor_frame" group="2" />
+              </body>
+              <site name="r_ring_finger_tip" pos="0 0 -0.02475" group="3" size="0.002" rgba="1 0 0 1" />
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="r_pinky_proximal" pos="-0.037351 -0.00073376 -0.055296" quat="0.98999 -0.00638516 0.124818 -0.0655712">
+        <inertial pos="-2.12648e-07 -0.00178136 -0.00760145" quat="0.999275 -0.0380615 2.43184e-05 0.000106967" mass="0.0116" diaginertia="9.19664e-07 9.08603e-07 7.88413e-07" />
+        <joint name="r_pinky_mcp_flex" pos="0 0 0" axis="1 0 0" range="-1.047 1.57" actuatorfrcrange="-2 2" armature="0.0005" />
+        <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="r_pinky_proximal" />
+        <geom type="mesh" rgba="0.8 0.6 1 0.3" mesh="r_pinky_proximal" group="2" />
+        <body name="r_pinky_proximal_abd" pos="0 -0.001201 -0.0145" quat="1 0 0 1.81365e-05">
+          <inertial pos="1.55647e-06 5.4532e-07 -0.016785" quat="0.762177 -7.77124e-06 3.02081e-05 0.647368" mass="0.0304" diaginertia="5.38014e-06 5.37944e-06 8.1771e-07" />
+          <joint name="r_pinky_mcp_abd" pos="0 0 0" axis="0 1 0" range="-0.698 0.698" actuatorfrcrange="-0.2 0.2" />
+          <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="r_pinky_proximal_abd" />
+          <geom type="mesh" rgba="0.8 0.6 1 0.3" mesh="r_pinky_proximal_abd" group="2" />
+          <body name="r_pinky_middle" pos="0.0001 0 -0.0336" quat="1 0 0 -1.81365e-05">
+            <inertial pos="-3.23236e-07 -0.000264491 -0.0178807" quat="0.707241 0.0112918 -0.0112863 0.706792" mass="0.0188" diaginertia="2.05957e-06 1.98647e-06 5.84911e-07" />
+            <joint name="r_pinky_pip" pos="0 0 0" axis="1 0 0" range="-1.047 2.094" actuatorfrcrange="-0.3 0.3" />
+            <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="r_pinky_middle" />
+            <geom type="mesh" rgba="0.8 0.6 1 0.3" mesh="r_pinky_middle" group="2" />
+            <body name="r_pinky_distal" pos="0 0 -0.0275">
+              <inertial pos="0.000767405973014 -0.00278778950305 -0.00722744221286" mass="0.005" quat="0.70268251 -0.14591602 -0.05476555 -0.69422370" diaginertia="4.83270356e-07 3.88592738e-07 1.78664842e-07" />
+              <joint name="r_pinky_dip" pos="0 0 0" axis="1 0 0" range="-1.047 1.57" actuatorfrcrange="-0.3 0.3" />
+              <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.75 0.75 0.75 1" mesh="r_pinky_distal" />
+              <geom type="mesh" rgba="0.8 0.6 1 0.3" mesh="r_pinky_distal" group="2" />
+              <body name="r_pinky_tip_sensor_frame" pos="0 0 0">
+                <inertial pos="2.95138642793e-07 0.00147202588401 -0.014938673509" mass="0.003" quat="-0.69023463 0.15336850 0.15323097 0.69034377" diaginertia="1.25973400e-07 1.00794410e-07 6.27665038e-08" />
+                <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.55 0.78 0.95 1" mesh="r_pinky_tip_sensor_frame" />
+                <geom type="mesh" rgba="0.8 0.6 1 0.3" mesh="r_pinky_tip_sensor_frame" group="2" />
+              </body>
+              <site name="r_pinky_tip" pos="0 0 -0.02475" group="3" size="0.002" rgba="1 0 0 1" />
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+  <actuator>
+    <position name="r_THJ0" joint="r_thumb_cmc_flex" kp="0.40844710645048043" kv="0.020882010257063675" ctrlrange="-1.187 1.291" forcerange="-0.6 0.6" />
+    <position name="r_THJ1" joint="r_thumb_cmc_abd" kp="0.6858601063643346" kv="0.030610939996373314" ctrlrange="-1.484 0.698" forcerange="-0.6 0.6" />
+    <position name="r_THJ2" joint="r_thumb_mcp" kp="0.2391112196099482" kv="0.010181475050560962" ctrlrange="-1.047 1.57" forcerange="-0.3 0.3" />
+    <position name="r_THJ3" joint="r_thumb_ip" kp="0.20736128319711747" kv="0.00909698844675045" ctrlrange="-1.047 1.57" forcerange="-0.3 0.3" />
+    <position name="r_FFJ0" joint="r_index_finger_mcp_flex" kp="0.37352218155860073" kv="0.01882274330029718" ctrlrange="-1.047 1.57" forcerange="-2 2" />
+    <position name="r_FFJ1" joint="r_index_finger_mcp_abd" kp="0.45592448909027794" kv="0.019798167597016643" ctrlrange="-0.698 0.698" forcerange="-0.2 0.2" />
+    <position name="r_FFJ2" joint="r_index_finger_pip" kp="0.24368366649522863" kv="0.010477031953162727" ctrlrange="-1.047 2.094" forcerange="-0.3 0.3" />
+    <position name="r_FFJ3" joint="r_index_finger_dip" kp="0.18026971340925335" kv="0.008240212147903584" ctrlrange="-1.047 1.57" forcerange="-0.3 0.3" />
+    <position name="r_MFJ0" joint="r_middle_finger_mcp_flex" kp="0.3687093483646485" kv="0.01848622487024593" ctrlrange="-1.047 1.57" forcerange="-2 2" />
+    <position name="r_MFJ1" joint="r_middle_finger_mcp_abd" kp="0.4164253443634641" kv="0.018032947229953678" ctrlrange="-0.698 0.698" forcerange="-0.2 0.2" />
+    <position name="r_MFJ2" joint="r_middle_finger_pip" kp="0.22218607502059182" kv="0.009592200014076666" ctrlrange="-1.047 2.094" forcerange="-0.3 0.3" />
+    <position name="r_MFJ3" joint="r_middle_finger_dip" kp="0.19427606072023446" kv="0.009152994605972402" ctrlrange="-1.047 1.57" forcerange="-0.3 0.3" />
+    <position name="r_RFJ0" joint="r_ring_finger_mcp_flex" kp="0.35718151495111794" kv="0.018376606800780005" ctrlrange="-1.047 1.57" forcerange="-2 2" />
+    <position name="r_RFJ1" joint="r_ring_finger_mcp_abd" kp="0.42977315313086895" kv="0.01867700966212433" ctrlrange="-0.698 0.698" forcerange="-0.2 0.2" />
+    <position name="r_RFJ2" joint="r_ring_finger_pip" kp="0.24930151196247122" kv="0.01059512121009555" ctrlrange="-1.047 2.094" forcerange="-0.3 0.3" />
+    <position name="r_RFJ3" joint="r_ring_finger_dip" kp="0.2285032688178066" kv="0.009917602877441107" ctrlrange="-1.047 1.57" forcerange="-0.3 0.3" />
+    <position name="r_LFJ0" joint="r_pinky_mcp_flex" kp="0.3655325975433942" kv="0.018616960278988272" ctrlrange="-1.047 1.57" forcerange="-2 2" />
+    <position name="r_LFJ1" joint="r_pinky_mcp_abd" kp="0.41393113081120425" kv="0.018732177029667153" ctrlrange="-0.698 0.698" forcerange="-0.2 0.2" />
+    <position name="r_LFJ2" joint="r_pinky_pip" kp="0.22729367621965954" kv="0.00951005441616486" ctrlrange="-1.047 2.094" forcerange="-0.3 0.3" />
+    <position name="r_LFJ3" joint="r_pinky_dip" kp="0.1964723550341816" kv="0.009017295241756363" ctrlrange="-1.047 1.57" forcerange="-0.3 0.3" />
+  </actuator>
+  <contact>
+    <exclude body1="r_thumb_proximal" body2="r_wrist" />
+    <exclude body1="r_thumb_proximal_abd" body2="r_wrist" />
+    <exclude body1="r_index_finger_proximal" body2="r_wrist" />
+    <exclude body1="r_index_finger_proximal_abd" body2="r_wrist" />
+    <exclude body1="r_middle_finger_proximal" body2="r_wrist" />
+    <exclude body1="r_middle_finger_proximal_abd" body2="r_wrist" />
+    <exclude body1="r_ring_finger_proximal" body2="r_wrist" />
+    <exclude body1="r_ring_finger_proximal_abd" body2="r_wrist" />
+    <exclude body1="r_pinky_proximal" body2="r_wrist" />
+    <exclude body1="r_pinky_proximal_abd" body2="r_wrist" />
+  </contact>
+</mujoco>

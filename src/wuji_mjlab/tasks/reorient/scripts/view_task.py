@@ -1,11 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Wuji Technology Co., Ltd.
-"""Visualize a task with a dummy policy for model/collision inspection.
-
-Examples:
-  pixi run python src/wuji_mjlab/tasks/reorient/scripts/view_task.py WujiHand_Reorient --num-envs 1 --viewer viser
-  pixi run python src/wuji_mjlab/tasks/reorient/scripts/view_task.py WujiHand_Reorient --num-envs 1 --viewer native --play
-"""
+"""Visualize a task with a dummy policy for model/collision inspection."""
 
 from __future__ import annotations
 
@@ -19,7 +14,7 @@ import tyro
 import wuji_mjlab.tasks  # noqa: F401
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.rl import RslRlVecEnvWrapper
-from mjlab.tasks.registry import list_tasks, load_env_cfg
+from mjlab.tasks.registry import list_tasks, load_env_cfg, load_rl_cfg
 from mjlab.viewer import NativeMujocoViewer, ViserPlayViewer
 
 
@@ -30,6 +25,7 @@ class ViewTaskConfig:
   num_envs: int = 1
   device: str | None = None
   viewer: Literal["auto", "native", "viser"] = "auto"
+  pitch: float | None = None
 
 
 def run_view(task_id: str, cfg: ViewTaskConfig) -> None:
@@ -37,8 +33,16 @@ def run_view(task_id: str, cfg: ViewTaskConfig) -> None:
 
   device = cfg.device or ("cuda:0" if torch.cuda.is_available() else "cpu")
   env_cfg = load_env_cfg(task_id, play=cfg.play)
+  agent_cfg = load_rl_cfg(task_id)
   env_cfg.scene.num_envs = cfg.num_envs
+  if cfg.pitch is not None:
+    env_cfg.events["reset_robot_pose"].params["pose_range"]["pitch"] = (
+      cfg.pitch,
+      cfg.pitch,
+    )
+    print(f"[INFO] Overriding reset robot pitch to {cfg.pitch:+.4f} rad")
   env = ManagerBasedRlEnv(cfg=env_cfg, device=device)
+  env.max_common_steps = agent_cfg.max_iterations * agent_cfg.num_steps_per_env
   env = RslRlVecEnvWrapper(env, clip_actions=None)
 
   action_shape: tuple[int, ...] = env.unwrapped.action_space.shape  # type: ignore

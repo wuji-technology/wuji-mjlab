@@ -47,7 +47,6 @@ def _get_motion_path_cfg(motion_cmd: Any) -> tuple[str | None, str]:
   if motion_files is not None:
     return motion_files[0] if motion_files else None, "motion_files"
 
-  # fallback for single-file API
   motion_file = getattr(motion_cmd, "motion_file", None)
   if motion_file is not None:
     return motion_file, "motion_file"
@@ -204,6 +203,7 @@ def run_play_with_cfg(task_id: str, cfg: PlayConfig, env_cfg: Any, agent_cfg: An
       "[WARN] Video recording with dummy agents is disabled (no checkpoint/log_dir)."
     )
   env = ManagerBasedRlEnv(cfg=env_cfg, device=device, render_mode=render_mode)
+  env.max_common_steps = agent_cfg.max_iterations * agent_cfg.num_steps_per_env
 
   if TRAINED_MODE and cfg.video:
     print("[INFO] Recording videos during play")

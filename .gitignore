@@ -1,5 +1,4 @@
 # Python
-__pycache__/
 __pycache__
 *.pyc
 *.pyo
@@ -44,7 +43,7 @@ AGENTS.md
 .pixi/
 
 # Release assets — users download + unzip + rename these into the repo
-# root per docs/sim2real/setup.md §3; they shouldn't be committed.
+# root per src/wuji_mjlab/tasks/reorient/docs/setup.md §3; they shouldn't be committed.
 wuji-mjlab-*-assets.zip
 wuji-mjlab-*-assets/
 /release-assets/
@@ -56,6 +55,7 @@ experiments/
 
 # Model files
 *.pt
+*.ckpt
 *.pth
 *.onnx
 *.pkl
@@ -81,32 +81,29 @@ nv_shadercache/
 MvSdkLog/
 MVS-*.deb
 pyrightconfig.json
-wuji-mjlab.code-workspace
+
+# Pen-spin training release data; keep recipes/docs tracked separately.
+/src/wuji_mjlab/tasks/pen_spin/data/*
+!/src/wuji_mjlab/tasks/pen_spin/data/recipe/
 
 # Environment / secrets
-.env
 *.env
 
 # Jupyter
 .ipynb_checkpoints/
 
 # Docs (local working files)
-docs/internal/
-docs/design/
-docs/plans/
-docs/dev/
-docs/superpowers/
+**/docs/internal/
+**/docs/design/
+**/docs/plans/
+**/docs/dev/
 
 # Intentionally local scratch/debug workspace. If we add tracked fixtures, they
 # should live in a separate non-ignored test-data path.
 tests/debug/
 
-# Grasp object datasets (hundreds of MB of meshes / manifests). Populate
-# src/wuji_mjlab/assets/datasets/grasp_objects/ locally (or set
-# WUJI_GRASP_OBJECT_ROOT to another path).
-src/wuji_mjlab/assets/datasets/grasp_objects/
 
-.codex/
 
-# Local training scratch (untracked).
-src/wuji_mjlab/tasks/reorient/train_scripts/
+# Local training scratch (untracked), per task.
+src/wuji_mjlab/tasks/*/train_scripts/
+.k8s/

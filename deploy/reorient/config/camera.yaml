@@ -7,20 +7,20 @@ roi:
   width: 1280
   height: 1024
 fast_roi:
-  offset_x: 464
-  offset_y: 112
-  width: 616
-  height: 504
+  offset_x: 208
+  offset_y: 8
+  width: 664
+  height: 608
 intrinsics:
   fx: 1694.09
   fy: 1692.69
-  cx: 644.70
-  cy: 477.70
+  cx: 644.7
+  cy: 477.7
 distortion:
   k1: -0.071205
   k2: 0.129295
   p1: 0.000104
-  p2: 0.000100
+  p2: 0.0001
   k3: -0.128663
 capture:
   exposure_time: 5000

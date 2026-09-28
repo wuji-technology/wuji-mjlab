@@ -1,14 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Wuji Technology Co., Ltd.
-"""Scene construction and obs/action/goal utilities for reorient eval scripts.
-
-Builds a MuJoCo scene by composing robot + cube specs via MjSpec attach,
-matching the mjlab scene pipeline (scene.py) but standalone for eval.
-
-The thin CLI wrappers (``scripts/eval_success_rate.py`` etc.) import from
-this module so the building blocks can be exercised without launching the
-viewer or full mjlab env stack.
-"""
+"""Scene construction and obs/action/goal utilities for reorient eval scripts."""
 
 from __future__ import annotations
 
@@ -20,11 +12,6 @@ import mujoco
 import numpy as np
 
 _GOAL_VIS_Z_OFFSET = 0.15
-
-
-# ---------------------------------------------------------------------------
-# Quaternion utilities (numpy, wxyz = [w, x, y, z])
-# ---------------------------------------------------------------------------
 
 
 def quat_mul(q1: np.ndarray, q2: np.ndarray) -> np.ndarray:
@@ -47,11 +34,7 @@ def quat_inv(q: np.ndarray) -> np.ndarray:
 
 
 def quat_apply(q: np.ndarray, v: np.ndarray) -> np.ndarray:
-  """Rotate vector v by quaternion q (wxyz format).
-
-  Uses the formula: v' = v + 2w*(xyz × v) + 2*(xyz × (xyz × v)).
-  Matches mjlab quat_apply semantics.
-  """
+  """Rotate vector v by quaternion q (wxyz)."""
   w, x, y, z = q
   xyz = np.array([x, y, z])
   t = 2.0 * np.cross(xyz, v)
@@ -59,18 +42,12 @@ def quat_apply(q: np.ndarray, v: np.ndarray) -> np.ndarray:
 
 
 def quat_apply_inverse(q: np.ndarray, v: np.ndarray) -> np.ndarray:
-  """Rotate vector v by the inverse of quaternion q (wxyz format).
-
-  Equivalent to quat_apply(quat_inv(q), v).
-  """
+  """Rotate vector v by the inverse of quaternion q (wxyz format)."""
   return quat_apply(quat_inv(q), v)
 
 
 def matrix_from_quat(q: np.ndarray) -> np.ndarray:
-  """Convert quaternion (wxyz) to 3x3 rotation matrix.
-
-  Matches mjlab/utils/lab_api/math.py:168-198.
-  """
+  """Convert quaternion (wxyz) to 3x3 rotation matrix."""
   w, x, y, z = q
   two_s = 2.0 / (np.dot(q, q))
   return np.array(
@@ -89,15 +66,10 @@ def matrix_from_quat(q: np.ndarray) -> np.ndarray:
 
 
 def quat_error_magnitude(q1: np.ndarray, q2: np.ndarray) -> float:
-  """Angular error between two quaternions in radians (wxyz format).
-
-  Matches mjlab quat_box_minus → axis_angle → norm.
-  """
+  """Angular error between two quaternions in radians (wxyz format)."""
   qd = quat_mul(q1, quat_inv(q2))
-  # Ensure w >= 0 for shortest path
   if qd[0] < 0:
     qd = -qd
-  # axis-angle: 2 * arctan2(|v|, w)
   vec_norm = np.linalg.norm(qd[1:])
   angle = 2.0 * np.arctan2(vec_norm, qd[0])
   return angle
@@ -119,28 +91,23 @@ def quat_unique(q: np.ndarray) -> np.ndarray:
   return q
 
 
-# ---------------------------------------------------------------------------
-# Scene metadata
-# ---------------------------------------------------------------------------
-
-
 @dataclass
 class SceneMetadata:
   model: mujoco.MjModel
   data: mujoco.MjData
-  joint_qpos_adr: np.ndarray  # (20,)
-  ctrl_ids: np.ndarray  # (20,)
-  cube_qpos_adr: int  # freejoint qpos start
+  joint_qpos_adr: np.ndarray
+  ctrl_ids: np.ndarray
+  cube_qpos_adr: int
   cube_body_id: int
-  palm_body_id: int  # body index of robot/right_palm_link
-  goal_mocap_id: int  # mocap body index
-  default_joint_pos: np.ndarray  # (20,)
-  default_cube_pos: np.ndarray  # (3,) from keyframe
+  palm_body_id: int
+  tag_site_id: int
+  goal_mocap_id: int
+  default_joint_pos: np.ndarray
+  default_cube_pos: np.ndarray
   default_cube_quat: np.ndarray  # (4,) wxyz from keyframe
-  soft_lower: np.ndarray  # (20,)
-  soft_upper: np.ndarray  # (20,)
+  soft_lower: np.ndarray
+  soft_upper: np.ndarray
 
-  # Timing
   sim_dt: float = 0.01
   ctrl_dt: float = 0.05
   n_substeps: int = 5
@@ -171,9 +138,36 @@ class SceneMetadata:
     return self.data.xquat[self.palm_body_id].copy()
 
 
-# ---------------------------------------------------------------------------
-# Scene construction
-# ---------------------------------------------------------------------------
+def _resolve_hand_profile(hand: str, hand_side: str):
+  if hand == "hand1":
+    from wuji_mjlab.tasks.reorient.config.wuji_hand.env_cfgs import (
+      get_wuji_hand_rig_cfg,
+    )
+    from wuji_mjlab.tasks.reorient.reorient_constants import (
+      REORIENT_CUBE_INIT_STATE,
+      REORIENT_ROBOT_INIT_STATE,
+    )
+
+    return (
+      get_wuji_hand_rig_cfg(hand_side),
+      REORIENT_ROBOT_INIT_STATE,
+      REORIENT_CUBE_INIT_STATE,
+    )
+  if hand == "hand2":
+    from wuji_mjlab.tasks.reorient.config.wuji_hand2.env_cfgs import (
+      get_wuji_hand2_rig_cfg,
+    )
+    from wuji_mjlab.tasks.reorient.config.wuji_hand2.hand2_constants import (
+      REORIENT_HAND2_ROBOT_INIT_STATE,
+      hand2_cube_init_state,
+    )
+
+    return (
+      get_wuji_hand2_rig_cfg(hand_side),
+      REORIENT_HAND2_ROBOT_INIT_STATE,
+      hand2_cube_init_state(hand_side),
+    )
+  raise ValueError(f"Unknown hand {hand!r}; expected 'hand1' or 'hand2'.")
 
 
 def build_reorient_scene(
@@ -181,44 +175,29 @@ def build_reorient_scene(
   ctrl_dt: float = 0.05,
   soft_limit_factor: float = 0.9,
   cube_edge_m: float | None = None,
+  hand: str = "hand1",
+  hand_side: str = "right",
 ) -> SceneMetadata:
-  """Build a MuJoCo scene for reorient eval by composing robot + cube specs.
-
-  Follows the scene.py MjSpec attach pattern:
-  1. Create empty MjSpec, set timestep
-  2. Robot spec: extract keyframe → delete → attach(prefix="robot/")
-  3. Cube spec: extract keyframe → delete → attach(prefix="object/")
-  4. Merge assets (original + prefixed)
-  5. Add goal mocap body (semi-transparent cube mesh)
-  6. Merge keyframes → add_key("init_state", ...)
-  7. Compile, resolve indices
-  """
+  """Build a MuJoCo scene for reorient eval by composing robot + cube specs."""
   from wuji_mjlab.assets.objects.inhand_object.object_cfg import get_inhand_object_cfg
-  from wuji_mjlab.assets.robots.wuji_hand.wuji_hand_cfg import get_wuji_hand_cfg
-  from wuji_mjlab.tasks.reorient.reorient_constants import (
-    REORIENT_CUBE_INIT_STATE,
-    REORIENT_ROBOT_INIT_STATE,
-  )
+
+  robot_cfg, robot_init, cube_init = _resolve_hand_profile(hand, hand_side)
 
   spec = mujoco.MjSpec()
   spec.option.timestep = sim_dt
 
   all_entity_assets: dict[str, bytes] = {}
 
-  # Robot spec: attach with prefix at InitialStateCfg position
-  robot_cfg = get_wuji_hand_cfg()
   robot_spec = robot_cfg.spec_fn()
   if robot_spec.assets:
     all_entity_assets.update(robot_spec.assets)
   while robot_spec.keys:
     robot_spec.delete(robot_spec.keys[0])
-  robot_init = REORIENT_ROBOT_INIT_STATE
   frame = spec.worldbody.add_frame()
-  frame.pos = np.array(robot_init.pos)  # (0, 0, 0.5) — lift hand above ground
-  frame.quat = np.array(robot_init.rot)  # (1, 0, 0, 0)
+  frame.pos = np.array(robot_init.pos)
+  frame.quat = np.array(robot_init.rot)
   spec.attach(robot_spec, prefix="robot/", frame=frame)
 
-  # Cube spec: attach with prefix (parameterized size)
   cube_cfg = get_inhand_object_cfg(edge_m=cube_edge_m)
   cube_spec = cube_cfg.spec_fn()
   if cube_spec.assets:
@@ -228,35 +207,26 @@ def build_reorient_scene(
   frame = spec.worldbody.add_frame()
   spec.attach(cube_spec, prefix="object/", frame=frame)
 
-  # Merge original entity assets into scene spec (scene.py)
   if all_entity_assets:
     existing = dict(spec.assets) if spec.assets else {}
     existing.update(all_entity_assets)
     spec.assets = existing
 
-  # -- Add goal mocap body (semi-transparent textured cube for visualization) --
-  # Reuses the attached cube's mesh + dexcube material (prefix "object/") so the
-  # goal marker matches the live cube's appearance; alpha=0.6 keeps the texture
-  # visible while letting the real cube show through behind it.
   goal_body = spec.worldbody.add_body()
   goal_body.name = "goal"
   goal_body.mocap = True
-  goal_body.pos = np.array([0.0, 0.0, 0.65])  # Above hand, z+0.15 from cube default
+  goal_body.pos = np.array([0.0, 0.0, 0.65])
 
   goal_geom = goal_body.add_geom()
-  goal_geom.type = mujoco.mjtGeom.mjGEOM_MESH
-  goal_geom.meshname = "object/cube_mesh"
-  goal_geom.material = "object/dexcube"
-  goal_geom.rgba = np.array(
-    [1.0, 1.0, 1.0, 0.6]
-  )  # Semi-transparent, preserves texture color
+  # Box, not the dex_cube mesh: a type="cube" texture only maps onto a box.
+  goal_geom.type = mujoco.mjtGeom.mjGEOM_BOX
+  goal_geom.size = np.array([0.027, 0.027, 0.027])
+  goal_geom.material = "object/arucocube"
+  goal_geom.rgba = np.array([1.0, 1.0, 1.0, 0.6])
   goal_geom.contype = 0
   goal_geom.conaffinity = 0
   goal_geom.group = 2
 
-  # -- Visual assets: skybox + checker groundplane + directional light --
-  # Mirrors deploy/reorient/scripts/toreal_viewer.py:build_viewer_scene_xml()
-  # so the eval viewer matches the deployment viewer's look.
   skybox = spec.add_texture()
   skybox.name = "skybox"
   skybox.type = mujoco.mjtTexture.mjTEXTURE_SKYBOX
@@ -284,7 +254,6 @@ def build_reorient_scene(
   gp_mat.texuniform = True
   gp_mat.reflectance = 0.2
 
-  # Global visual tweaks (best-effort; harmless if unsupported)
   try:
     spec.visual.headlight.diffuse = np.array([0.8, 0.8, 0.8])
     spec.visual.headlight.ambient = np.array([0.2, 0.2, 0.2])
@@ -295,13 +264,11 @@ def build_reorient_scene(
   except Exception:
     pass
 
-  # Directional light from above so the checker floor casts shadow.
   light = spec.worldbody.add_light()
   light.pos = np.array([0.0, 0.0, 1.5])
   light.dir = np.array([0.0, 0.0, -1.0])
   light.type = mujoco.mjtLightType.mjLIGHT_DIRECTIONAL
 
-  # -- Add ground plane (textured via groundplane material) --
   ground_geom = spec.worldbody.add_geom()
   ground_geom.name = "floor"
   ground_geom.type = mujoco.mjtGeom.mjGEOM_PLANE
@@ -310,47 +277,40 @@ def build_reorient_scene(
   ground_geom.contype = 1
   ground_geom.conaffinity = 1
 
-  # -- Add a placeholder keyframe so model.nkey >= 1 for reset_scene --
   spec.add_key(name="init_state")
 
-  # -- Compile first to resolve indices --
   model = spec.compile()
   data = mujoco.MjData(model)
 
-  # -- Resolve indices --
   joint_names = [
-    f"robot/right_finger{f}_joint{j}" for f in range(1, 6) for j in range(1, 5)
+    f"robot/{hand_side}_finger{f}_joint{j}" for f in range(1, 6) for j in range(1, 5)
   ]
   joint_qpos_adr = np.array([model.joint(n).qposadr[0] for n in joint_names])
 
-  # Actuator IDs (actuator names have _act suffix from XML)
   ctrl_ids = np.array(
     [
-      model.actuator(f"robot/right_finger{f}_joint{j}_actuator").id
+      model.actuator(f"robot/{hand_side}_finger{f}_joint{j}_actuator").id
       for f in range(1, 6)
       for j in range(1, 5)
     ]
   )
 
-  # Cube freejoint
   cube_jnt_name = "object/cube_freejoint"
   cube_qpos_adr = model.joint(cube_jnt_name).qposadr[0]
   cube_body_id = model.body("object/cube").id
 
-  # Palm body (for tag-frame obs)
-  palm_body_id = model.body("robot/right_palm_link").id
+  palm_body_id = model.body(f"robot/{hand_side}_palm_link").id
+  tag_site_id = model.site(f"robot/{hand_side}_wrist_tag").id
 
-  # Goal mocap body
   goal_body_id = model.body("goal").id
   goal_mocap_id = model.body_mocapid[goal_body_id]
   assert goal_mocap_id >= 0, "Goal body must be a mocap body"
 
-  # -- Build init state from constants (specs have no keyframes; Entity builds them) --
-  # Robot joint positions from REORIENT_ROBOT_INIT_STATE
-  robot_home = REORIENT_ROBOT_INIT_STATE
+  # Entity specs ship no keyframes (mjlab's Entity builds them at runtime).
+  robot_home = robot_init
   default_joint_pos = np.zeros(20, dtype=np.float64)
   bare_joint_names = [
-    f"right_finger{f}_joint{j}" for f in range(1, 6) for j in range(1, 5)
+    f"{hand_side}_finger{f}_joint{j}" for f in range(1, 6) for j in range(1, 5)
   ]
   for i, jname in enumerate(bare_joint_names):
     # joint_pos keys are regex patterns (e.g. ".*_finger1_joint1"); match against bare name
@@ -361,13 +321,9 @@ def build_reorient_scene(
         default_joint_pos[i] = val
         break
 
-  # Write robot joint qpos
   data.qpos[joint_qpos_adr] = default_joint_pos
-  # Write robot joint ctrl (same as joint pos for position actuators)
   data.ctrl[ctrl_ids] = default_joint_pos
 
-  # Cube initial state from REORIENT_CUBE_INIT_STATE
-  cube_init = REORIENT_CUBE_INIT_STATE
   default_cube_pos = np.array(cube_init.pos, dtype=np.float64)
   default_cube_quat = np.array(cube_init.rot, dtype=np.float64)
   data.qpos[cube_qpos_adr : cube_qpos_adr + 3] = default_cube_pos
@@ -375,11 +331,10 @@ def build_reorient_scene(
 
   mujoco.mj_forward(model, data)
 
-  # Save as keyframe for reset_scene()
+  # reset_scene relies on keyframe 0 as the canonical initial state.
   model.key_qpos[0] = data.qpos.copy()
   model.key_ctrl[0] = data.ctrl.copy()
 
-  # -- Soft joint limits (entity.py) --
   raw_lower = np.array([model.jnt_range[model.joint(n).id][0] for n in joint_names])
   raw_upper = np.array([model.jnt_range[model.joint(n).id][1] for n in joint_names])
   mean = (raw_lower + raw_upper) / 2.0
@@ -397,6 +352,7 @@ def build_reorient_scene(
     cube_qpos_adr=cube_qpos_adr,
     cube_body_id=cube_body_id,
     palm_body_id=palm_body_id,
+    tag_site_id=tag_site_id,
     goal_mocap_id=goal_mocap_id,
     default_joint_pos=default_joint_pos,
     default_cube_pos=default_cube_pos,
@@ -409,16 +365,8 @@ def build_reorient_scene(
   )
 
 
-# ---------------------------------------------------------------------------
-# Observation functions (numpy, matching mjlab training observations)
-# ---------------------------------------------------------------------------
-
-
 def compute_joint_pos_normalized(scene: SceneMetadata) -> np.ndarray:
-  """Joint positions normalized by soft limits to [-1, 1]. Shape: (20,).
-
-  Matches joint_pos_limit_normalized in src/wuji_mjlab/tasks/reorient/mdp/observations.py.
-  """
+  """Joint positions normalized by soft limits to [-1, 1]."""
   pos = scene.joint_pos
   center = 0.5 * (scene.soft_lower + scene.soft_upper)
   half_range = 0.5 * (scene.soft_upper - scene.soft_lower)
@@ -428,10 +376,7 @@ def compute_joint_pos_normalized(scene: SceneMetadata) -> np.ndarray:
 def compute_joint_pos_target_error(
   scene: SceneMetadata, target: np.ndarray
 ) -> np.ndarray:
-  """Normalized joint position error: current_normalized - target_normalized. Shape: (20,).
-
-  Matches joint_pos_target_error in src/wuji_mjlab/tasks/reorient/mdp/observations.py.
-  """
+  """Normalized joint position error: current_normalized - target_normalized."""
   center = 0.5 * (scene.soft_lower + scene.soft_upper)
   half_range = 0.5 * (scene.soft_upper - scene.soft_lower)
 
@@ -442,28 +387,13 @@ def compute_joint_pos_target_error(
 
 
 def compute_cube_pos_in_tag(scene: SceneMetadata) -> np.ndarray:
-  """Cube position in tag (wrist marker) frame. Shape: (3,).
-
-  Mirrors cube_pos_in_tag in src/wuji_mjlab/tasks/reorient/mdp/observations.py:
-    tag_pos_w = palm_pos_w + quat_apply(palm_quat_w, TAG_IN_PALM_POS)
-    tag_quat_w = quat_mul(palm_quat_w, TAG_IN_PALM_QUAT_WXYZ)
-    cube_pos_in_tag = quat_apply_inverse(tag_quat_w, cube_pos_w - tag_pos_w)
-
-  TAG_IN_PALM_* pulled from reorient_constants — single source of truth
-  shared with the training-side obs.
-  """
-  from wuji_mjlab.tasks.reorient.reorient_constants import (
-    TAG_IN_PALM_POS,
-    TAG_IN_PALM_QUAT_WXYZ,
+  """Cube position in tag (wrist marker) frame."""
+  d = scene.data
+  tag_pos_w = np.asarray(d.site_xpos[scene.tag_site_id], dtype=np.float64)
+  tag_quat_w = np.empty(4, dtype=np.float64)
+  mujoco.mju_mat2Quat(
+    tag_quat_w, np.asarray(d.site_xmat[scene.tag_site_id], dtype=np.float64)
   )
-
-  tag_in_palm_pos = np.array(TAG_IN_PALM_POS, dtype=np.float64)
-  tag_in_palm_quat = np.array(TAG_IN_PALM_QUAT_WXYZ, dtype=np.float64)
-
-  palm_pos_w = scene.palm_pos
-  palm_quat_w = scene.palm_quat
-  tag_pos_w = palm_pos_w + quat_apply(palm_quat_w, tag_in_palm_pos)
-  tag_quat_w = quat_mul(palm_quat_w, tag_in_palm_quat)
   cube_pos_tag = quat_apply_inverse(tag_quat_w, scene.cube_pos - tag_pos_w)
   return cube_pos_tag.astype(np.float32)
 
@@ -471,22 +401,10 @@ def compute_cube_pos_in_tag(scene: SceneMetadata) -> np.ndarray:
 def compute_cube_ori_error_6d(
   scene: SceneMetadata, goal_quat: np.ndarray
 ) -> np.ndarray:
-  """6D rotation error: flatten(rot_matrix)[3:]. Shape: (6,).
-
-  q_err = quat_mul(cube_quat, quat_inv(goal_quat))
-  rot = matrix_from_quat(q_err)  → 9 values row-major
-  return rot[3:]  → [M10, M11, M12, M20, M21, M22]
-
-  Matches goal_rot_err_6d in src/wuji_mjlab/tasks/reorient/mdp/observations.py.
-  """
+  """6D rotation error: flatten(rot_matrix)[3:]."""
   q_err = quat_mul(scene.cube_quat, quat_inv(goal_quat))
-  mat = matrix_from_quat(q_err)  # (9,)
+  mat = matrix_from_quat(q_err)
   return mat[3:].astype(np.float32)
-
-
-# ---------------------------------------------------------------------------
-# Action control law
-# ---------------------------------------------------------------------------
 
 
 def apply_action(
@@ -498,15 +416,7 @@ def apply_action(
   ema_alpha: float = 0.5,
   warmup_time_s: float = 0.4,
 ) -> np.ndarray:
-  """Apply action to scene, returns new prev_target.
-
-  Matches JointPositionOffsetEMAAction.process_actions() in actions.py.
-
-  raw_target = default_pos + clamp(action, -1, 1) * action_scale
-  clip to soft limits
-  smoothed = ema_alpha * raw_target + (1 - ema_alpha) * prev_target
-  During warmup: hold default_pos
-  """
+  """Apply action to scene, returns new prev_target."""
   clamped = np.clip(action, -1.0, 1.0)
   raw_target = scene.default_joint_pos + clamped * action_scale
   raw_target = np.clip(raw_target, scene.soft_lower, scene.soft_upper)
@@ -519,14 +429,8 @@ def apply_action(
   else:
     processed = smoothed
 
-  # Write to ctrl
   scene.data.ctrl[scene.ctrl_ids] = processed
   return processed.copy()
-
-
-# ---------------------------------------------------------------------------
-# Goal management
-# ---------------------------------------------------------------------------
 
 
 def goal_mocap_position_above_cube(
@@ -571,22 +475,14 @@ def check_hold(
   success_hold_steps: int = 5,
   goal_switch_delay: int = 20,
 ) -> tuple[HoldState, HoldEvents]:
-  """Two-phase hold check mirroring InHandReorientCommand._update_command.
-
-  APPROACHING: count consecutive within-threshold steps.
-  SUCCESS_WINDOW: wait goal_switch_delay steps then signal goal switch.
-
-  Returns (new_state, events).
-  """
+  """Two-phase hold check mirroring InHandReorientCommand._update_command."""
   events = HoldEvents()
   within_threshold = ori_error < threshold
 
   if not state.in_success_window:
-    # APPROACHING phase
     if within_threshold:
       state.hold_counter += 1
       if state.hold_counter >= success_hold_steps:
-        # Transition to SUCCESS_WINDOW
         state.in_success_window = True
         state.window_timer = 0
         state.hold_counter = 0
@@ -594,21 +490,14 @@ def check_hold(
     else:
       state.hold_counter = 0
   else:
-    # SUCCESS_WINDOW phase
     state.window_timer += 1
     if state.window_timer >= goal_switch_delay:
-      # Goal switch
       state.in_success_window = False
       state.window_timer = 0
       state.hold_counter = 0
       events.goal_switched = True
 
   return state, events
-
-
-# ---------------------------------------------------------------------------
-# Scene reset + config loading
-# ---------------------------------------------------------------------------
 
 
 def reset_scene(scene: SceneMetadata) -> None:
@@ -618,12 +507,7 @@ def reset_scene(scene: SceneMetadata) -> None:
 
 
 def load_config(run_dir: str | Path) -> dict:
-  """Load config.json from a training run directory.
-
-  Searches in standard locations:
-  - <run_dir>/config.json
-  - <run_dir>/checkpoints/config.json
-  """
+  """Load config.json from a training run directory."""
   run_dir = Path(run_dir)
   candidates = [
     run_dir / "checkpoints" / "config.json",
@@ -634,11 +518,6 @@ def load_config(run_dir: str | Path) -> dict:
       with open(p) as f:
         return json.load(f)
   return {}
-
-
-# ---------------------------------------------------------------------------
-# Contact info (for terminal display)
-# ---------------------------------------------------------------------------
 
 
 def get_contact_info(model: mujoco.MjModel, data: mujoco.MjData) -> dict:
