@@ -6,14 +6,13 @@ repos:
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
-        exclude: ^src/wuji_mjlab/assets/robots/wuji_hand2/mjcf/right_mjlab\.xml$
       - id: check-yaml
         args: ['--unsafe']  # deploy/reorient/config/cube_calibration.yaml uses !!python/tuple tags
       - id: check-toml
       - id: check-added-large-files
         args: ['--maxkb=500']
-        # Preserve the official mount mesh and task documentation GIFs.
-        exclude: ^src/wuji_mjlab/assets/robots/wuji_hand2/meshes/right/r_mount\.STL$|^src/wuji_mjlab/tasks/(reorient|pen_spin)/docs/assets/.*\.gif$
+        # Preserve the task documentation GIFs.
+        exclude: ^src/wuji_mjlab/tasks/(reorient|pen_spin)/docs/assets/.*\.gif$
       - id: check-merge-conflict
 
   - repo: https://github.com/astral-sh/ruff-pre-commit

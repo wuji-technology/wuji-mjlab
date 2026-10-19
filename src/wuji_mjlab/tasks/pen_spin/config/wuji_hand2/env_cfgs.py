@@ -184,7 +184,8 @@ def _configure_hand2_domain_randomization(
       params={
         "asset_cfg": robot_joints,
         "operation": "scale",
-        "ranges": (0.75, 1.3),
+        "ranges": (0.5, 2.0),
+        "distribution": "log_uniform",
       },
     ),
     # The nominal is identified per joint on one hand (hand2_constants.py); the band
@@ -246,7 +247,10 @@ def _configure_hand2_fingertip_bumps(
       "grav_mult_range": (0.0, 4.0),
       # Rounded compensation keeps wrench amplitudes within 6% of e8f142b
       # without changing hand2 masses, their DR, or the random draws.
-      "force_scale": {f"right_finger{finger}_link4": 1.5 for finger in range(1, 6)},
+      "force_scale": {
+        "right_finger1_link4": 2.8,
+        **{f"right_finger{finger}_link4": 1.6 for finger in range(2, 6)},
+      },
       "offset_radius_scale": {
         f"right_finger{finger}_link4": 0.9 for finger in range(1, 6)
       },

@@ -3,7 +3,7 @@
 """Identified Wuji Hand 2 actuator and joint parameters used by pen-spin.
 
 These values are the identified calibration for the right Wuji Hand 2 hand.  They
-are applied to the shared MJCF at load time so the checked-in geometry XML
+are applied to the shared MJCF at load time so the wuji-description geometry
 remains reusable by other tasks.
 """
 
@@ -238,73 +238,49 @@ class ActuatorCalibration:
   torque_limit: float
   damping: float
   frictionloss: float
+  armature: float
 
 
-PEN_SPIN_HAND2_KP = (
-  2.4261130417,
-  2.0794416666,
-  1.2998710108,
-  0.7795706558,
-  2.4261130417,
-  0.9813556864,
-  0.9813556864,
-  0.9813556864,
-  2.4261130417,
-  0.9813556864,
-  0.9813556864,
-  0.9813556864,
-  2.4261130417,
-  0.9813556864,
-  0.9813556864,
-  0.9813556864,
-  2.6167529689,
-  0.6540415961,
-  0.6540415961,
-  0.6540415961,
+# MIT gains and current limit; must match gains: in
+# deploy/pen_spin/config/control.yaml.
+PEN_SPIN_HAND2_MIT_KP = 3.0
+# joint1-joint4 of every finger.
+PEN_SPIN_HAND2_MIT_KD = (0.075, 0.07, 0.05, 0.05)
+PEN_SPIN_HAND2_CURRENT_LIMIT_A = 1.5
+PEN_SPIN_HAND2_AMPS_PER_MIT_UNIT = 1.9114709702965849
+# Output torque constants, N*m/A.
+PEN_SPIN_HAND2_TORQUE_CONSTANT = (
+  0.4136,
+  0.3545,
+  0.2216,
+  0.1329,
+  0.4136,
+  0.1673,
+  0.1673,
+  0.1673,
+  0.4136,
+  0.1673,
+  0.1673,
+  0.1673,
+  0.4136,
+  0.1673,
+  0.1673,
+  0.1673,
+  0.4461,
+  0.1115,
+  0.1115,
+  0.1115,
 )
-PEN_SPIN_HAND2_KV = (
-  0.0808704359,
-  0.0693147233,
-  0.0433290343,
-  0.0259856889,
-  0.0808704359,
-  0.0327118567,
-  0.0327118567,
-  0.0327118567,
-  0.0808704359,
-  0.0327118567,
-  0.0327118567,
-  0.0327118567,
-  0.0808704359,
-  0.0327118567,
-  0.0327118567,
-  0.0327118567,
-  0.0872251003,
-  0.0218013869,
-  0.0218013869,
-  0.0218013869,
+PEN_SPIN_HAND2_KP = tuple(
+  kt * PEN_SPIN_HAND2_AMPS_PER_MIT_UNIT * PEN_SPIN_HAND2_MIT_KP
+  for kt in PEN_SPIN_HAND2_TORQUE_CONSTANT
 )
-PEN_SPIN_HAND2_TORQUE_LIMIT = (
-  0.6204,
-  0.53175,
-  0.3324,
-  0.19935,
-  0.6204,
-  0.25095,
-  0.25095,
-  0.25095,
-  0.6204,
-  0.25095,
-  0.25095,
-  0.25095,
-  0.6204,
-  0.25095,
-  0.25095,
-  0.25095,
-  0.66915,
-  0.16725,
-  0.16725,
-  0.16725,
+PEN_SPIN_HAND2_KV = tuple(
+  kt * PEN_SPIN_HAND2_AMPS_PER_MIT_UNIT * PEN_SPIN_HAND2_MIT_KD[i % 4]
+  for i, kt in enumerate(PEN_SPIN_HAND2_TORQUE_CONSTANT)
+)
+PEN_SPIN_HAND2_TORQUE_LIMIT = tuple(
+  kt * PEN_SPIN_HAND2_CURRENT_LIMIT_A for kt in PEN_SPIN_HAND2_TORQUE_CONSTANT
 )
 # Joint caps retained by the original pen-spin baseline's right_mjlab.xml,
 # before the shared asset switched to hand2. Keep these separate from the
@@ -331,49 +307,71 @@ PEN_SPIN_BASELINE_JOINT_TORQUE_LIMITS = {
   "right_finger5_joint3": 0.28,
   "right_finger5_joint4": 0.30,
 }
+PEN_SPIN_HAND2_ARMATURE = (
+  1.457162e-4,
+  1.366389e-4,
+  1.273553e-4,
+  8.768902e-5,
+  1.130474e-4,
+  5.127161e-5,
+  4.843783e-5,
+  7.906193e-5,
+  2.011048e-4,
+  7.106655e-5,
+  6.054746e-5,
+  5.659272e-5,
+  1.393897e-4,
+  3.544108e-5,
+  5.233974e-5,
+  6.047948e-5,
+  9.706259e-5,
+  3.826054e-5,
+  4.664456e-5,
+  4.743778e-5,
+)
 PEN_SPIN_HAND2_DAMPING = (
-  0.0011481331,
-  0.0028281253,
-  0.0014018148,
-  0.0010513064,
-  0.0026457962,
-  0.0001960150,
-  0.0010739417,
-  0.0006737062,
-  0.0012442763,
+  0.0026915050,
+  0.0042812198,
+  0.0014135711,
+  0.0005131806,
+  0.0010510923,
   0.0,
-  0.0003244629,
-  0.0009038801,
-  0.0026002904,
+  0.0010302809,
+  0.0000663526,
+  0.0021587672,
+  0.0008842859,
+  0.0012610488,
+  0.0001128493,
+  0.0014506542,
   0.0,
-  0.0005600658,
-  0.0000185669,
-  0.0016515482,
+  0.0007149635,
   0.0,
-  0.0001594732,
-  0.0000986090,
+  0.0,
+  0.0,
+  0.0016246495,
+  0.0,
 )
 PEN_SPIN_HAND2_FRICTIONLOSS = (
-  0.0483964915,
-  0.0347770044,
-  0.0227845884,
-  0.0379860220,
-  0.0384875828,
-  0.0199457769,
-  0.0221054269,
-  0.0105610665,
-  0.0407692067,
-  0.0201052160,
-  0.0131031763,
-  0.0191064985,
-  0.0340672352,
-  0.0288227380,
-  0.0132650550,
-  0.0174435280,
-  0.0304631362,
-  0.0236187851,
-  0.0133160780,
-  0.0109171043,
+  0.0367355430,
+  0.0342266392,
+  0.0187921182,
+  0.0122545518,
+  0.0377084683,
+  0.0177932607,
+  0.0297927367,
+  0.0161822467,
+  0.0355644840,
+  0.0240616629,
+  0.0127755677,
+  0.0109169800,
+  0.0528257763,
+  0.0266927477,
+  0.0148677454,
+  0.0215947297,
+  0.0338251954,
+  0.0261331247,
+  0.0142008972,
+  0.0129471168,
 )
 
 
@@ -389,6 +387,7 @@ def get_calibration(joint_names: tuple[str, ...]) -> dict[str, ActuatorCalibrati
       PEN_SPIN_HAND2_TORQUE_LIMIT[i],
       PEN_SPIN_HAND2_DAMPING[i],
       PEN_SPIN_HAND2_FRICTIONLOSS[i],
+      PEN_SPIN_HAND2_ARMATURE[i],
     )
     for i, name in enumerate(joint_names)
   }
@@ -410,6 +409,7 @@ def apply_hand2_identified(spec_fn) -> mujoco.MjSpec:
     joint.actfrclimited = mujoco.mjtLimited.mjLIMITED_TRUE
     joint.damping[0] = params.damping
     joint.frictionloss = params.frictionloss
+    joint.armature = params.armature
   return spec
 
 
@@ -444,6 +444,9 @@ def apply_hand2_pen_spin_collision_overlay(spec: mujoco.MjSpec) -> mujoco.MjSpec
     bodyname1="right_finger1_link2",
     bodyname2="right_palm_link",
   )
+  mount = spec.geom("right_mount_collision")
+  mount.contype = 0
+  mount.conaffinity = 0
   return spec
 
 

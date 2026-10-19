@@ -11,7 +11,7 @@ _SCALAR_GAINS = {"kp": float, "kd": float, "effort": float, "servo": float}
 
 def parse_gains(spec: str) -> dict:
     """Parse scalar and per-joint gain overrides."""
-    out: dict = {"kp_joint": {}, "effort_joint": {}}
+    out: dict = {"kp_joint": {}, "kd_joint": {}, "effort_joint": {}}
     for item in (s.strip() for s in spec.split(",")):
         if not item:
             continue
@@ -26,7 +26,7 @@ def parse_gains(spec: str) -> dict:
             ) from None
         if key in _SCALAR_GAINS:
             out[key] = fval
-        elif key.startswith("kp.") or key.startswith("effort."):
+        elif key.startswith(("kp.", "kd.", "effort.")):
             kind, joint = key.split(".", 1)
             out[f"{kind}_joint"][joint] = fval
         else:

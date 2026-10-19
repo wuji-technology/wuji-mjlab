@@ -23,7 +23,13 @@ from wuji_mjlab.tasks.pen_spin.config.wuji_hand2.env_cfgs import (
 )
 from wuji_mjlab.tasks.pen_spin.config.wuji_hand2.hand2_constants import (
   HAND2_PEN_SPIN_CAPSULES,
+  PEN_SPIN_HAND2_AMPS_PER_MIT_UNIT,
+  PEN_SPIN_HAND2_ARMATURE,
+  PEN_SPIN_HAND2_DAMPING,
+  PEN_SPIN_HAND2_FRICTIONLOSS,
+  PEN_SPIN_HAND2_TORQUE_CONSTANT,
   PEN_SPIN_HAND2_TORQUE_LIMIT,
+  RIGHT_FINGER_JOINT_NAMES,
   apply_hand2_pen_spin_collision_overlay,
   get_pen_spin_hand2_cfg,
 )
@@ -146,6 +152,29 @@ def test_collision_surface_matches_cube_overlay():
   assert capsule.sum() == 15
   assert (capsule & active).sum() == 10
   assert ((pen.geom_type == mujoco.mjtGeom.mjGEOM_MESH) & active).sum() == 11
+
+
+def test_deploy_mit_gains_drive_the_training_actuators(deploy):
+  gains = importlib.import_module("lib.config_loader").get_gains()
+  names = [name.removeprefix("right_") for name in RIGHT_FINGER_JOINT_NAMES]
+  mit_kp = np.array([gains["kp_joint"].get(name, gains["kp"]) for name in names])
+  mit_kd = np.array([gains["kd_joint"].get(name, gains["kd"]) for name in names])
+  amps = np.array([gains["effort_joint"].get(name, gains["effort"]) for name in names])
+  model = get_pen_spin_hand2_cfg().spec_fn().compile()
+  assert [model.joint(int(j)).name for j in model.actuator_trnid[:, 0]] == list(
+    RIGHT_FINGER_JOINT_NAMES
+  )
+  torque_per_unit = np.asarray(PEN_SPIN_HAND2_TORQUE_CONSTANT) * (
+    PEN_SPIN_HAND2_AMPS_PER_MIT_UNIT
+  )
+  np.testing.assert_allclose(model.actuator_gainprm[:, 0], torque_per_unit * mit_kp)
+  np.testing.assert_allclose(-model.actuator_biasprm[:, 2], torque_per_unit * mit_kd)
+  np.testing.assert_allclose(
+    model.actuator_forcerange[:, 1], np.asarray(PEN_SPIN_HAND2_TORQUE_CONSTANT) * amps
+  )
+  np.testing.assert_allclose(model.dof_armature, PEN_SPIN_HAND2_ARMATURE)
+  np.testing.assert_allclose(model.dof_damping, PEN_SPIN_HAND2_DAMPING)
+  np.testing.assert_allclose(model.dof_frictionloss, PEN_SPIN_HAND2_FRICTIONLOSS)
 
 
 @pytest.mark.parametrize("effort_scale", [0.7, 1.0, 1.05, 2.0])

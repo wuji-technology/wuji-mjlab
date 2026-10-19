@@ -202,21 +202,51 @@ def _names(model: mujoco.MjModel, obj_type: mujoco.mjtObj, count: int) -> set[st
   }
 
 
-def test_hand2_public_xml_preserves_upstream_content_with_public_name() -> None:
-  xml = wuji_hand2_cfg.wuji_hand2_xml_path("right").read_bytes()
-  name_line, contents = xml.split(b"\n", 1)
-  assert name_line == b'<mujoco model="wujihand2-right">'
-  # Only the public model name differs from the original asset snapshot.
-  assert hashlib.sha256(contents).hexdigest() == (
-    "9cede782aaed3e9aa955baf36dbf4ae0e6cb1057eef087cb5cd174e473025cec"
+def test_hand2_loads_wuji_description_hand2_2() -> None:
+  xml_path = wuji_hand2_cfg.wuji_hand2_xml_path("right")
+  assert xml_path.is_relative_to(wuji_hand2_cfg.WUJI_DESCRIPTION_DIR)
+  assert xml_path.relative_to(wuji_hand2_cfg.WUJI_DESCRIPTION_DIR).parts[:2] == (
+    "hand2",
+    "hand2_2",
   )
+  assert mujoco.MjSpec.from_file(str(xml_path)).modelname == "wujihand2_2-right"
+
+
+def test_hand2_loader_reroots_upstream_at_palm_without_moving_anything() -> None:
+  upstream = mujoco.MjModel.from_xml_path(str(wuji_hand2_cfg.wuji_hand2_xml_path()))
+  loaded = wuji_hand2_cfg._get_spec(wuji_hand2_cfg.wuji_hand2_xml_path()).compile()
+  assert loaded.body(1).name == "right_palm_link"
+  assert loaded.body_parentid[loaded.body("right_mount").id] == 1
+  assert loaded.nsensor == 0
+  up_data, data = mujoco.MjData(upstream), mujoco.MjData(loaded)
+  mujoco.mj_forward(upstream, up_data)
+  mujoco.mj_forward(loaded, data)
+  palm = upstream.body("r_wrist").id
+  to_palm = np.zeros(3), np.zeros(4)
+  mujoco.mju_negPose(*to_palm, up_data.xpos[palm], up_data.xquat[palm])
+  names = wuji_hand2_cfg.WUJI_HAND2_TASK_NAMES["body"]
+  for up_name, name in names.items():
+    up_id, task_id = upstream.body(up_name).id, loaded.body(name).id
+    for xpos, xquat in (("xpos", "xquat"), ("xipos", None)):
+      pose = np.zeros(3), np.zeros(4)
+      quat = getattr(up_data, xquat)[up_id] if xquat else np.array([1.0, 0, 0, 0])
+      mujoco.mju_mulPose(*pose, *to_palm, getattr(up_data, xpos)[up_id], quat)
+      np.testing.assert_allclose(getattr(data, xpos)[task_id], pose[0], atol=1e-12)
+      if xquat:
+        assert abs(np.dot(getattr(data, xquat)[task_id], pose[1])) == pytest.approx(1.0)
+    assert loaded.body_mass[task_id] == upstream.body_mass[up_id]
+    np.testing.assert_array_equal(
+      loaded.body_inertia[task_id], upstream.body_inertia[up_id]
+    )
+  for field in ("jnt_range", "dof_armature", "actuator_gainprm", "actuator_biasprm"):
+    np.testing.assert_array_equal(getattr(loaded, field), getattr(upstream, field))
 
 
 def test_hand2_reorient_rig_retains_task_geom_and_site_settings() -> None:
   model = (
     wuji_hand2_reorient_env_cfg(num_envs=1).scene.entities["robot"].spec_fn().compile()
   )
-  assert model.ngeom == 73
+  assert model.ngeom == 74
   np.testing.assert_allclose(model.geom_friction, [[0.7, 0.005, 0.0001]] * model.ngeom)
   np.testing.assert_allclose(model.geom_solref, [[0.02, 1.5]] * model.ngeom)
   np.testing.assert_allclose(
@@ -285,7 +315,7 @@ def test_hand2_loader_rejects_extra_site(tmp_path: Path) -> None:
   tmp_mjcf.mkdir()
   tmp_xml = tmp_mjcf / original_xml.name
   xml = original_xml.read_text()
-  first_body = xml.index("<body name=")
+  first_body = xml.index('<body name="r_wrist"')
   body_open_end = xml.index(">", first_body) + 1
   xml = (
     xml[:body_open_end] + '<site name="r_extra" size="0.001"/>' + xml[body_open_end:]

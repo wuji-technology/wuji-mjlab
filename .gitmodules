@@ -1,0 +1,4 @@
+[submodule "wuji-description"]
+	path = src/wuji_mjlab/assets/robots/wuji-description
+	url = https://github.com/wuji-technology/wuji-description.git
+	shallow = true

@@ -38,8 +38,8 @@
 curl -fsSL https://pixi.sh/install.sh | bash
 export PATH="$HOME/.pixi/bin:$PATH"
 
-# 2. 克隆仓库并安装训练环境
-git clone https://github.com/wuji-technology/wuji-mjlab
+# 2. 克隆仓库（含 wuji-description 子模块）并安装训练环境
+git clone --recurse-submodules https://github.com/wuji-technology/wuji-mjlab
 cd wuji-mjlab
 pixi install
 
@@ -47,7 +47,7 @@ pixi install
 pixi run list-envs
 ```
 
-`pixi install` 创建训练与回放共用的 `default` 环境。安装后，从下方任务入口继续准备数据和启动训练；各任务的部署环境安装方法见对应任务文档。
+`pixi install` 创建训练与回放共用的 `default` 环境。Wuji Hand 1 和 Hand 2 的模型都从 `src/wuji_mjlab/assets/robots/wuji-description` 子模块读取；已有的克隆用 `git submodule update --init` 拉取。安装后，从下方任务入口继续准备数据和启动训练；各任务的部署环境安装方法见对应任务文档。
 
 ## 任务
 

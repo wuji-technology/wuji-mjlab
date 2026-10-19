@@ -38,8 +38,8 @@ Left: **Wuji Hand 1 · Cube**. Middle: **Wuji Hand 2 · Cube**. Both columns sho
 curl -fsSL https://pixi.sh/install.sh | bash
 export PATH="$HOME/.pixi/bin:$PATH"
 
-# 2. Clone the repository and install the training environment
-git clone https://github.com/wuji-technology/wuji-mjlab
+# 2. Clone the repository (with the wuji-description submodule) and install the training environment
+git clone --recurse-submodules https://github.com/wuji-technology/wuji-mjlab
 cd wuji-mjlab
 pixi install
 
@@ -47,7 +47,7 @@ pixi install
 pixi run list-envs
 ```
 
-`pixi install` creates the `default` environment for training and playback. Continue with a task guide below to prepare data and start training; each guide links to its deployment environment setup.
+`pixi install` creates the `default` environment for training and playback. The Wuji Hand 1 and Hand 2 models are read from the `src/wuji_mjlab/assets/robots/wuji-description` submodule; in an existing clone, fetch it with `git submodule update --init`. Continue with a task guide below to prepare data and start training; each guide links to its deployment environment setup.
 
 ## Tasks
 

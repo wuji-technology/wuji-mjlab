@@ -121,9 +121,11 @@ def test_cube_can_collide_with_hand(side: str) -> None:
 @pytest.mark.parametrize("side", _STRUCT_SIDES)
 def test_mount_collision_is_disabled(side: str) -> None:
   model, _ = _build(side)
-  mount = _gid(model, "r_mount_visual")
+  mount = _gid(model, f"{side}_mount_collision")
   assert model.geom_contype[mount] == 0 and model.geom_conaffinity[mount] == 0
-  assert not _can_collide(model, _gid(model, "cube"), mount)
+  cube = _gid(model, "cube")
+  for gid in np.flatnonzero(model.geom_bodyid == model.body(f"{side}_mount").id):
+    assert not _can_collide(model, cube, int(gid))
 
 
 @pytest.mark.parametrize("side", _STRUCT_SIDES)
@@ -162,7 +164,7 @@ def test_cube_never_contacts_the_mount(side: str) -> None:
   model, data = _build(side)
   n_steps = int(1.5 / model.opt.timestep)
   seen = _step_collecting_contacts(model, data, n_steps)
-  offending = [pair for pair in seen if "cube" in pair and "r_mount" in pair]
+  offending = [pair for pair in seen if "cube" in pair and f"{side}_mount" in pair]
   assert not offending, f"cube contacted the mount: {offending}"
 
 

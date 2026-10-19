@@ -37,7 +37,9 @@ def build_model(
 
     spec = get_hand2_reorient_spec(partial(_get_spec, xml_path))
   else:
-    spec = mujoco.MjSpec.from_file(str(xml_path))
+    from wuji_mjlab.assets.robots.wuji_hand.wuji_hand_cfg import _get_spec
+
+    spec = _get_spec(xml_path)
 
   palm = spec.body(f"{side}_palm_link")
   palm.pos = root_pos

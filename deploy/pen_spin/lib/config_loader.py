@@ -77,7 +77,7 @@ def get_timing() -> dict[str, float]:
 
 
 def get_gains() -> dict[str, Any]:
-    """Hand drive gains: kp, kd, effort, kp_joint, effort_joint.
+    """Hand drive gains: kp, kd, effort, kp_joint, kd_joint, effort_joint.
 
     ``--gains k=v`` is a deviation from these, so this is the only place a
     forgotten flag can fall back to. Missing per-joint blocks come back as empty
@@ -89,6 +89,7 @@ def get_gains() -> dict[str, Any]:
         'kd': float(cfg['kd']),
         'effort': float(cfg['effort']),
         'kp_joint': dict(cfg.get('kp_joint') or {}),
+        'kd_joint': dict(cfg.get('kd_joint') or {}),
         'effort_joint': dict(cfg.get('effort_joint') or {}),
     }
     for key in ('kp', 'kd', 'effort'):

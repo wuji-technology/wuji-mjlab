@@ -6,13 +6,27 @@ timing:
   idle_viewer_hz: 30.0
   jv_lowpass_cutoff_hz: 100.0
 
+# Must match PEN_SPIN_HAND2_MIT_KP / _MIT_KD / _CURRENT_LIMIT_A in
+# src/wuji_mjlab/tasks/pen_spin/config/wuji_hand2/hand2_constants.py.
 # Optional per-joint overrides:
 #   kp_joint:     {finger5_joint2: 3.0}
+#   kd_joint:     {finger5_joint2: 0.05}
 #   effort_joint: {finger5_joint2: 1.0}
 gains:
   kp: 3.0
-  kd: 0.1
+  kd: 0.05
   effort: 1.5
+  kd_joint:
+    finger1_joint1: 0.075
+    finger1_joint2: 0.07
+    finger2_joint1: 0.075
+    finger2_joint2: 0.07
+    finger3_joint1: 0.075
+    finger3_joint2: 0.07
+    finger4_joint1: 0.075
+    finger4_joint2: 0.07
+    finger5_joint1: 0.075
+    finger5_joint2: 0.07
 
 # Joint limits are ordered finger-major, four joints per finger. Values are in
 # radians and match the shared wuji_hand2 MJCF.

@@ -4,9 +4,10 @@
 from collections.abc import Callable
 
 import mujoco
+import numpy as np
 from mjlab.entity import EntityCfg
 
-from wuji_mjlab.assets.robots.wuji_hand2.wuji_hand2_cfg import wuji_hand2_mesh_dir
+from wuji_mjlab.assets.robots.wuji_hand2.wuji_hand2_cfg import WUJI_HAND2_JIG_TABLE_MESH
 
 REORIENT_HAND2_PALM_NORMAL_AXIS = 1
 
@@ -14,6 +15,7 @@ REORIENT_HAND2_PALM_NORMAL_AXIS = 1
 REORIENT_HAND2_ROOT_POS = (-0.0284999, 0.00300004, 0.500250158)
 REORIENT_HAND2_ROOT_ROT = (0.5, 0.5, 0.5, 0.5)
 
+# Calibrated mount frame, in the palm frame.
 REORIENT_HAND2_MOUNT_POS = (-0.0030000041, -0.000250110803, 0.0285)
 REORIENT_HAND2_MOUNT_ROT = (1.0, 0.0, 0.0, -0.0000081995)
 REORIENT_HAND2_TAG_POS = (0.0, 0.037408, 0.034737)
@@ -243,8 +245,6 @@ HAND2_REORIENT_CAPSULES = {
   ),
 }
 
-_HAND2_MESH_DIR = wuji_hand2_mesh_dir("right")
-
 
 def apply_hand2_reorient_actuator_gains(spec: mujoco.MjSpec) -> mujoco.MjSpec:
   """Apply the Wuji Hand 2 gains measured for the reorient task."""
@@ -307,6 +307,9 @@ def apply_hand2_reorient_collision_overlay(spec: mujoco.MjSpec) -> mujoco.MjSpec
     bodyname1="right_finger1_link2",
     bodyname2="right_palm_link",
   )
+  mount = spec.geom("right_mount_collision")
+  mount.contype = 0
+  mount.conaffinity = 0
   return spec
 
 
@@ -348,43 +351,38 @@ def add_frame_axes(
     )
 
 
-def inject_hand2_reorient_rig(spec: mujoco.MjSpec) -> mujoco.MjSpec:
-  """Attach the calibration mount, jig, and wrist tag to the hand2 palm."""
-  assets = dict(spec.assets)
-  for mesh_name in ("r_mount", "jig_table"):
-    filename = f"{mesh_name}.STL"
-    spec.add_mesh(name=mesh_name, content_type="model/stl", file=filename)
-    asset_key = f"{spec.meshdir}/{filename}" if spec.meshdir else filename
-    assets[asset_key] = (_HAND2_MESH_DIR / filename).read_bytes()
-  spec.assets = assets
+def _in_mount(mount: mujoco.MjsBody, pos, quat) -> tuple[np.ndarray, np.ndarray]:
+  """Express a pose given in the calibrated mount frame in the mount body."""
+  palm_to_body = np.zeros(3), np.zeros(4)
+  mujoco.mju_negPose(*palm_to_body, mount.pos, mount.quat / np.linalg.norm(mount.quat))
+  calibrated = np.zeros(3), np.zeros(4)
+  mujoco.mju_mulPose(
+    *calibrated,
+    np.asarray(REORIENT_HAND2_MOUNT_POS, dtype=np.float64),
+    np.asarray(REORIENT_HAND2_MOUNT_ROT, dtype=np.float64),
+    np.asarray(pos, dtype=np.float64),
+    np.asarray(quat, dtype=np.float64),
+  )
+  out = np.zeros(3), np.zeros(4)
+  mujoco.mju_mulPose(*out, *palm_to_body, *calibrated)
+  return out
 
-  palm = spec.body("right_palm_link")
-  mount = palm.add_body(
-    name="r_mount",
-    pos=REORIENT_HAND2_MOUNT_POS,
-    quat=REORIENT_HAND2_MOUNT_ROT,
-    mass=0.069,
-    ipos=(-0.00285955798829, -0.00108266456258, -0.0169824080918),
-    iquat=(-0.51751125, -0.18292100, 0.83364234, 0.06133891),
-    inertia=(2.60409226e-05, 2.50870849e-05, 1.69216352e-05),
-    explicitinertial=1,
-  )
-  mount.add_geom(
-    name="r_mount_visual",
-    type=mujoco.mjtGeom.mjGEOM_MESH,
-    meshname="r_mount",
-    contype=0,
-    conaffinity=0,
-    group=1,
-    density=0,
-    rgba=(0.75, 0.75, 0.75, 1.0),
-  )
+
+def inject_hand2_reorient_rig(spec: mujoco.MjSpec) -> mujoco.MjSpec:
+  """Attach the calibration jig and wrist tag to the hand2 mount."""
+  filename = WUJI_HAND2_JIG_TABLE_MESH.name
+  spec.add_mesh(name="jig_table", content_type="model/stl", file=filename)
+  asset_key = f"{spec.meshdir}/{filename}" if spec.meshdir else filename
+  spec.assets = {**spec.assets, asset_key: WUJI_HAND2_JIG_TABLE_MESH.read_bytes()}
+
+  mount = spec.body("right_mount")
+  jig_pos, jig_quat = _in_mount(mount, REORIENT_HAND2_JIG_POS, REORIENT_HAND2_JIG_ROT)
   mount.add_geom(
     name="jig_table_visual",
     type=mujoco.mjtGeom.mjGEOM_MESH,
     meshname="jig_table",
-    pos=REORIENT_HAND2_JIG_POS,
-    quat=REORIENT_HAND2_JIG_ROT,
+    pos=jig_pos,
+    quat=jig_quat,
     contype=0,
     conaffinity=0,
     group=1,
@@ -392,11 +390,8 @@ def inject_hand2_reorient_rig(spec: mujoco.MjSpec) -> mujoco.MjSpec:
     rgba=(0.35, 0.55, 0.9, 0.55),
   )
 
-  tag = mount.add_body(
-    name="right_wrist_tag_frame",
-    pos=REORIENT_HAND2_TAG_POS,
-    quat=REORIENT_HAND2_TAG_ROT,
-  )
+  tag_pos, tag_quat = _in_mount(mount, REORIENT_HAND2_TAG_POS, REORIENT_HAND2_TAG_ROT)
+  tag = mount.add_body(name="right_wrist_tag_frame", pos=tag_pos, quat=tag_quat)
   tag.add_site(
     name="right_wrist_tag",
     type=mujoco.mjtGeom.mjGEOM_BOX,

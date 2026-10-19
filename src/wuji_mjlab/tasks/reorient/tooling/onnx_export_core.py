@@ -310,6 +310,9 @@ def _build_policy_identity(env_cfg: dict[str, Any]) -> dict[str, Any]:
       f"scene.entities.robot.spec_fn.state[1]: {encoded_path!r}"
     )
 
+  from wuji_mjlab.assets.robots.wuji_hand.wuji_hand_cfg import wuji_hand_xml_path
+  from wuji_mjlab.assets.robots.wuji_hand2.wuji_hand2_cfg import wuji_hand2_xml_path
+
   mjcf_parts = Path(robot_mjcf).parts
   anchor_index = next(
     (
@@ -327,16 +330,22 @@ def _build_policy_identity(env_cfg: dict[str, Any]) -> dict[str, Any]:
   local_mjcf = (
     Path(wuji_mjlab.__file__).resolve().parent.joinpath(*mjcf_parts[anchor_index + 2 :])
   )
+
+  if "wuji-description" in mjcf_parts:
+    family = mjcf_parts[mjcf_parts.index("wuji-description") + 1 :][:1]
+    hand_gen = {("hand2",): 2, ("hand",): 1}.get(family, 0)
+  else:
+    hand_gen = (
+      2 if "wuji_hand2" in mjcf_parts else 1 if "wuji_hand" in mjcf_parts else 0
+    )
+    if hand_gen and not local_mjcf.is_file():
+      # MJCF paths recorded before the wuji-description submodule.
+      local_mjcf = wuji_hand2_xml_path() if hand_gen == 2 else wuji_hand_xml_path()
   if not local_mjcf.is_file():
     raise FileNotFoundError(
       f"Robot MJCF {robot_mjcf!r} remaps to {local_mjcf}, but that file does not exist"
     )
-
-  if "wuji_hand2" in mjcf_parts:
-    hand_gen = 2
-  elif "wuji_hand" in mjcf_parts:
-    hand_gen = 1
-  else:
+  if hand_gen == 0:
     raise ValueError(
       f"Cannot determine hand generation from robot MJCF path {robot_mjcf!r}"
     )

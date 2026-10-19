@@ -17,7 +17,8 @@ ASSETS = ROOT / "src" / "wuji_mjlab" / "assets"
 
 # Robot and object XMLs are shared training assets. Do not copy task-specific
 # deploy variants here: one public XML per physical asset is the release rule.
-ROBOT_MJCF = ASSETS / "robots" / "wuji_hand2" / "mjcf" / "right_mjlab.xml"
+ROBOT_MJCF = (ASSETS / "robots" / "wuji-description" / "hand2" / "hand2_2"
+              / "body" / "mjcf" / "right.xml")
 SCENE_XML = _HERE.parent / "scenes" / "deploy.xml"
 PEN_MJCF = ASSETS / "objects" / "aruco_pen250" / "xmls" / "pen_tracking.xml"
 

@@ -160,8 +160,8 @@ _GEN1_DEFAULT_JOINT_POS = np.array([
   1.2, -0.228, 0.794, 0.407,
 ], dtype=np.float64)
 
-# Per-joint training-time MJCF position-actuator gains (assets/robots/wuji_hand/
-# mjcf/right_mjlab.xml <position kp=... kv=...>).
+# Per-joint training-time MJCF position-actuator gains (the <position kp=... kv=...>
+# of wuji-description hand/body-with-soft/mjcf/right_simplified.xml).
 _GEN1_SIM_KP = np.array([
   0.408447, 0.685860, 0.239111, 0.207361,
   0.373522, 0.455924, 0.243684, 0.180270,
@@ -186,7 +186,7 @@ _GEN1_ROOT_QUAT = np.array([0.70710678, 0.0, -0.70710678, 0.0], dtype=np.float64
 
 WUJI_HAND2_TASK_NAMES: dict[str, dict[str, str]] = {
   "model": {
-    "wujihand2-right": "wujihand2-right-mjlab"
+    "wujihand2_2-right": "wujihand2-right-mjlab"
   },
   "body": {
     "r_wrist": "right_palm_link",
@@ -214,7 +214,8 @@ WUJI_HAND2_TASK_NAMES: dict[str, dict[str, str]] = {
     "r_pinky_proximal_abd": "right_finger5_link2",
     "r_pinky_middle": "right_finger5_link3",
     "r_pinky_distal": "right_finger5_link4",
-    "r_pinky_tip_sensor_frame": "right_finger5_tip_sensor"
+    "r_pinky_tip_sensor_frame": "right_finger5_tip_sensor",
+    "r_mount": "right_mount"
   },
   "joint": {
     "r_thumb_cmc_flex": "right_finger1_joint1",
@@ -243,7 +244,8 @@ WUJI_HAND2_TASK_NAMES: dict[str, dict[str, str]] = {
     "r_index_finger_tip": "right_finger2_tip",
     "r_middle_finger_tip": "right_finger3_tip",
     "r_ring_finger_tip": "right_finger4_tip",
-    "r_pinky_tip": "right_finger5_tip"
+    "r_pinky_tip": "right_finger5_tip",
+    "r_wrist_imu_frame": "right_wrist_imu_frame"
   },
   "actuator": {
     "r_THJ0": "right_finger1_joint1_actuator",
@@ -293,7 +295,13 @@ WUJI_HAND2_TASK_NAMES: dict[str, dict[str, str]] = {
     "r_pinky_proximal_abd": "r_pinky_proximal_abd",
     "r_pinky_middle": "r_pinky_middle",
     "r_pinky_distal": "r_pinky_distal",
-    "r_pinky_tip_sensor_frame": "r_pinky_tip_sensor_frame"
+    "r_pinky_tip_sensor_frame": "r_pinky_tip_sensor_frame",
+    "r_mount": "r_mount"
+  },
+  "material": {
+    "matte_black": "matte_black",
+    "metal_silver": "metal_silver",
+    "sensor_pad": "sensor_pad"
   },
   "collision_geom": {
     "r_wrist": "right_palm_collision",
@@ -321,7 +329,8 @@ WUJI_HAND2_TASK_NAMES: dict[str, dict[str, str]] = {
     "r_pinky_proximal_abd": "right_finger5_link2_col",
     "r_pinky_middle": "right_finger5_link3_col",
     "r_pinky_distal": "right_finger5_link4_col",
-    "r_pinky_tip_sensor_frame": "right_finger5_tip_sensor_col"
+    "r_pinky_tip_sensor_frame": "right_finger5_tip_sensor_col",
+    "r_mount": "right_mount_collision"
   }
 }
 

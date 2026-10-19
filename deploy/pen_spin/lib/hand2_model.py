@@ -1,25 +1,30 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Wuji Technology Co., Ltd.
-"""Torch-free hand2 name adapter, matching main's shared robot loader.
+"""Torch-free hand2 loader, matching main's shared robot loader.
 
-Keep the public MJCF and its body hierarchy intact. This deploy-local copy
-avoids importing mjlab/torch into the pen-spin deployment environment; parity
-against the shared loader is checked by the hand2 compatibility tests.
+Reads the wuji-description submodule's hand2_2 MJCF, roots it at the palm with
+the mount as a child, drops the fixed-palm IMU sensors and applies the task
+names. This deploy-local copy avoids importing mjlab/torch into the pen-spin
+deployment environment; parity against the shared loader is checked by the
+hand2 compatibility tests.
 """
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import mujoco
+import numpy as np
 
-_RENAMED = ("body", "joint", "site", "actuator", "mesh")
+_RENAMED = ("body", "joint", "site", "actuator", "mesh", "material")
 _UNCOVERED = (
-  "sensors", "tendons", "equalities", "pairs", "cameras", "lights", "materials",
-  "textures", "hfields", "skins", "flexes", "keys", "numerics", "texts", "tuples",
-  "frames", "plugins",
+  "sensors", "tendons", "equalities", "pairs", "cameras", "lights", "textures",
+  "hfields", "skins", "flexes", "keys", "numerics", "texts", "tuples", "frames",
+  "plugins",
 )
+_DROPPED_SENSORS = ("r_wrist_imu_acc", "r_wrist_imu_gyro")
 
 WUJI_HAND2_TASK_NAMES: dict[str, dict[str, str]] = {
   "model": {
-    "wujihand2-right": "wujihand2-right-mjlab"
+    "wujihand2_2-right": "wujihand2-right-mjlab"
   },
   "body": {
     "r_wrist": "right_palm_link",
@@ -47,7 +52,8 @@ WUJI_HAND2_TASK_NAMES: dict[str, dict[str, str]] = {
     "r_pinky_proximal_abd": "right_finger5_link2",
     "r_pinky_middle": "right_finger5_link3",
     "r_pinky_distal": "right_finger5_link4",
-    "r_pinky_tip_sensor_frame": "right_finger5_tip_sensor"
+    "r_pinky_tip_sensor_frame": "right_finger5_tip_sensor",
+    "r_mount": "right_mount"
   },
   "joint": {
     "r_thumb_cmc_flex": "right_finger1_joint1",
@@ -76,7 +82,8 @@ WUJI_HAND2_TASK_NAMES: dict[str, dict[str, str]] = {
     "r_index_finger_tip": "right_finger2_tip",
     "r_middle_finger_tip": "right_finger3_tip",
     "r_ring_finger_tip": "right_finger4_tip",
-    "r_pinky_tip": "right_finger5_tip"
+    "r_pinky_tip": "right_finger5_tip",
+    "r_wrist_imu_frame": "right_wrist_imu_frame"
   },
   "actuator": {
     "r_THJ0": "right_finger1_joint1_actuator",
@@ -126,7 +133,13 @@ WUJI_HAND2_TASK_NAMES: dict[str, dict[str, str]] = {
     "r_pinky_proximal_abd": "r_pinky_proximal_abd",
     "r_pinky_middle": "r_pinky_middle",
     "r_pinky_distal": "r_pinky_distal",
-    "r_pinky_tip_sensor_frame": "r_pinky_tip_sensor_frame"
+    "r_pinky_tip_sensor_frame": "r_pinky_tip_sensor_frame",
+    "r_mount": "r_mount"
+  },
+  "material": {
+    "matte_black": "matte_black",
+    "metal_silver": "metal_silver",
+    "sensor_pad": "sensor_pad"
   },
   "collision_geom": {
     "r_wrist": "right_palm_collision",
@@ -154,7 +167,8 @@ WUJI_HAND2_TASK_NAMES: dict[str, dict[str, str]] = {
     "r_pinky_proximal_abd": "right_finger5_link2_col",
     "r_pinky_middle": "right_finger5_link3_col",
     "r_pinky_distal": "right_finger5_link4_col",
-    "r_pinky_tip_sensor_frame": "right_finger5_tip_sensor_col"
+    "r_pinky_tip_sensor_frame": "right_finger5_tip_sensor_col",
+    "r_mount": "right_mount_collision"
   }
 }
 
@@ -181,6 +195,7 @@ def _apply_task_names(spec: mujoco.MjSpec, names: dict[str, dict[str, str]]) -> 
     "site": list(spec.sites),
     "actuator": list(spec.actuators),
     "mesh": list(spec.meshes),
+    "material": list(spec.materials),
   }
   _require_bijection("model", [spec.modelname], names["model"])
   for kind in _RENAMED:
@@ -204,6 +219,8 @@ def _apply_task_names(spec: mujoco.MjSpec, names: dict[str, dict[str, str]]) -> 
   for geom in spec.geoms:
     if geom.type == mujoco.mjtGeom.mjGEOM_MESH:
       geom.meshname = names["mesh"][geom.meshname]
+    if geom.material:
+      geom.material = names["material"][geom.material]
   spec.modelname = names["model"][spec.modelname]
   for kind in _RENAMED:
     for element in elements[kind]:
@@ -213,20 +230,63 @@ def _apply_task_names(spec: mujoco.MjSpec, names: dict[str, dict[str, str]]) -> 
   joints = {joint.name for joint in spec.joints}
   bodies_after = {body.name for body in spec.bodies}
   meshes = {mesh.name for mesh in spec.meshes}
+  materials = {material.name for material in spec.materials}
   live = (
     sum(actuator.target in joints for actuator in spec.actuators),
     sum(e.bodyname1 in bodies_after and e.bodyname2 in bodies_after for e in spec.excludes),
     sum(g.meshname in meshes for g in spec.geoms if g.type == mujoco.mjtGeom.mjGEOM_MESH),
+    sum(g.material in materials for g in spec.geoms if g.material),
   )
   expected = (
     len(spec.actuators),
     len(spec.excludes),
     sum(g.type == mujoco.mjtGeom.mjGEOM_MESH for g in spec.geoms),
+    sum(bool(g.material) for g in spec.geoms),
   )
   if live != expected:
     raise ValueError(f"Wuji Hand 2 references left dangling after renaming: live={live} expected={expected}")
   return spec
 
 
+def _palm_rooted_xml(xml_path: Path) -> str:
+  root = ET.parse(xml_path).getroot()
+  worldbody = root.find("worldbody")
+  if worldbody is None or [(e.tag, e.get("name")) for e in worldbody] != [("body", "r_mount")]:
+    raise ValueError(f"{xml_path}: expected the worldbody to hold only body 'r_mount'")
+  mount = worldbody[0]
+  palms = [e for e in mount if e.tag == "body"]
+  if (
+    [palm.get("name") for palm in palms] != ["r_wrist"]
+    or set(mount.attrib) != {"name"}
+    or any(e.tag not in ("inertial", "geom", "body") for e in mount)
+    or not set(palms[0].attrib) <= {"name", "pos", "quat"}
+  ):
+    raise ValueError(f"{xml_path}: expected 'r_mount' at the origin holding only geoms and body 'r_wrist'")
+  palm = palms[0]
+  pos = np.array(palm.attrib.pop("pos", "0 0 0").split(), dtype=np.float64)
+  quat = np.array(palm.attrib.pop("quat", "1 0 0 0").split(), dtype=np.float64)
+  mount_pos, mount_quat = np.zeros(3), np.zeros(4)
+  mujoco.mju_negPose(mount_pos, mount_quat, pos, quat / np.linalg.norm(quat))
+  mount.remove(palm)
+  worldbody.remove(mount)
+  mount.set("pos", " ".join(repr(float(v)) for v in mount_pos))
+  mount.set("quat", " ".join(repr(float(v)) for v in mount_quat))
+  palm.append(mount)
+  worldbody.append(palm)
+  return ET.tostring(root, encoding="unicode")
+
+
 def load_hand_spec(xml_path: Path) -> mujoco.MjSpec:
-  return _apply_task_names(mujoco.MjSpec.from_file(str(xml_path)), WUJI_HAND2_TASK_NAMES)
+  if not xml_path.is_file():
+    raise FileNotFoundError(
+      f"Wuji Hand 2 MJCF not found: {xml_path}. Fetch the wuji-description "
+      "submodule with `git submodule update --init`."
+    )
+  spec = mujoco.MjSpec.from_string(_palm_rooted_xml(xml_path))
+  spec.modelfiledir = str(xml_path.parent)
+  sensors = list(spec.sensors)
+  if sorted(sensor.name for sensor in sensors) != sorted(_DROPPED_SENSORS):
+    raise ValueError(f"Wuji Hand 2 sensors {sorted(s.name for s in sensors)} differ from {sorted(_DROPPED_SENSORS)}")
+  for sensor in sensors:
+    spec.delete(sensor)
+  return _apply_task_names(spec, WUJI_HAND2_TASK_NAMES)

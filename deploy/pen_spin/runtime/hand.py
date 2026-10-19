@@ -132,6 +132,7 @@ def _resolve_gain_keys(overrides: dict | None, what: str) -> dict[int, float]:
 def connect_real(*, serial_number: str | None,
                  kp: float, kd: float, servo_hz: float, interp_s: float,
                  kp_overrides: dict | None = None,
+                 kd_overrides: dict | None = None,
                  effort_overrides: dict | None = None):
     """Open the Wuji Hand 2. Raises on any failure — there is no fallback driver.
 
@@ -140,7 +141,7 @@ def connect_real(*, serial_number: str | None,
     caller — who is the only one holding the checkpoint's ctrl_dt — is the only
     one who can state it.
 
-    The two override dicts are keyed by joint name; see
+    The override dicts are keyed by joint name; see
     ``_resolve_gain_keys``. Resolving before the adapter is constructed means a
     typo fails here, with the name in the message, instead of after the hand is
     already connected and enabled.
@@ -149,6 +150,7 @@ def connect_real(*, serial_number: str | None,
     --no-hardware or sim-only machine need not have installed.
     """
     kp_idx = _resolve_gain_keys(kp_overrides, "kp_joint")
+    kd_idx = _resolve_gain_keys(kd_overrides, "kd_joint")
     effort_idx = _resolve_gain_keys(effort_overrides, "effort_joint")
 
     from lib.hand2_adapter import Hand2Compat
@@ -157,6 +159,7 @@ def connect_real(*, serial_number: str | None,
         serial_number=serial_number,
         kp=kp, kd=kd, servo_hz=servo_hz, interp_s=interp_s,
         kp_overrides=kp_idx,
+        kd_overrides=kd_idx,
         effort_overrides=effort_idx,
     )
     hand.is_real = True

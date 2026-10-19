@@ -142,15 +142,17 @@ class Session:
         cfg, g = get_gains(), args.gains
         # servo_hz is a hardware streaming rate and lives under timing:, not
         # gains:; interp_s is the ramp BETWEEN two commands and must therefore be
-        # exactly one control period. A scalar kp= / effort= on --gains replaces
-        # the config's per-joint overrides of that kind; kp.<joint>= /
-        # effort.<joint>= add to them.
+        # exactly one control period. A scalar kp= / kd= / effort= on --gains
+        # replaces the config's per-joint overrides of that kind; kp.<joint>= /
+        # kd.<joint>= / effort.<joint>= add to them.
         hand = hand_mod.connect_real(
             serial_number=args.hand_sn,
             kp=g.get("kp", cfg["kp"]), kd=g.get("kd", cfg["kd"]),
             servo_hz=g.get("servo", get_timing()["servo_hz"]), interp_s=ctrl_dt,
             kp_overrides={**({} if "kp" in g else cfg["kp_joint"]),
                           **g.get("kp_joint", {})},
+            kd_overrides={**({} if "kd" in g else cfg["kd_joint"]),
+                          **g.get("kd_joint", {})},
             effort_overrides={**({} if "effort" in g else cfg["effort_joint"]),
                               **g.get("effort_joint", {})})
         hand.write_joint_effort_limit(g.get("effort", cfg["effort"]))

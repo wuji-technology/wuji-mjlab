@@ -13,6 +13,25 @@
 
 ### Changed
 
+- Wuji Hand 2: load `hand2/hand2_2` (v2026.10.12) from the `wuji-description`
+  submodule at `src/wuji_mjlab/assets/robots/wuji-description` instead of the
+  vendored copy. The loader keeps the palm as the root body with the upstream
+  mount as its child (collision disabled in both tasks), and drops the wrist IMU
+  sensors. Clone with `--recurse-submodules` or run
+  `git submodule update --init`. PenSpin fingertip bump `force_scale` becomes
+  2.8 (thumb) / 1.6.
+- Wuji Hand 1: load `hand/body-with-soft/mjcf/right_simplified.xml` from the
+  same submodule and apply the task edits in code; the compiled model is
+  unchanged.
+- PenSpin actuators: derive kp/kv/forcerange from the deploy MIT gains, the
+  motor torque constants, the identified 1.911 A per MIT unit and the 1.5 A
+  limit. Joint damping and frictionloss come from the same identification, and
+  joint armature is the vendor per-joint rotor inertia, with armature DR widened
+  to 0.5-2x (log-uniform). The pen-spin deploy gains change with them: MIT kd
+  is now 0.075 / 0.07 / 0.05 / 0.05 for joint1-4 (was 0.1 everywhere), set
+  through the new `gains.kd_joint` / `--gains kd.<joint>=` overrides. Reorient
+  is unchanged. Existing PenSpin checkpoints were trained with the old
+  actuators.
 - Require explicit `WANDB_PROJECT` and `WANDB_API_KEY` for W&B logging;
   TensorBoard and local checkpoint playback/video recording remain usable
   without W&B credentials.

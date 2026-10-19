@@ -79,6 +79,8 @@ class Hand2Compat:
         # (finger1..5 × joint1..4, e.g. finger5_joint2 -> 4*4+1 = 17).
         # The device mit_params resource is natively a 20-element array.
         kp_overrides: dict | None = None,
+        # Per-joint kd overrides, same {flat_idx: kd} indexing as kp_overrides.
+        kd_overrides: dict | None = None,
         # Per-joint effort-limit (A) overrides on top of the global scalar
         # set via write_joint_effort_limit; same {flat_idx: amps} indexing.
         # effort_limit().set is polymorphic: scalar = all 20, list[20] =
@@ -121,6 +123,8 @@ class Hand2Compat:
         self._kp, self._kd = float(kp), float(kd)
         self._kp_overrides = {int(k): float(v)
                               for k, v in (kp_overrides or {}).items()}
+        self._kd_overrides = {int(k): float(v)
+                              for k, v in (kd_overrides or {}).items()}
         self._effort_overrides = {int(k): float(v)
                                   for k, v in (effort_overrides or {}).items()}
         self._effort_limit_a = 0.5  # overwritten by write_joint_effort_limit
@@ -226,20 +230,23 @@ class Hand2Compat:
         if self._enabled:
             return
         self._apply_effort_limit()
-        if self._kp_overrides:
-            # Per-joint array write: global (kp, kd) everywhere, kp swapped
-            # on the override indices. Read-back verifies the write landed.
+        if self._kp_overrides or self._kd_overrides:
+            # Per-joint array write: global (kp, kd) everywhere, kp / kd
+            # swapped on the override indices. Read-back verifies the write landed.
             MP = self._sdk.MitParam
-            arr = [MP(self._kp_overrides.get(i, self._kp), self._kd)
+            arr = [MP(self._kp_overrides.get(i, self._kp),
+                      self._kd_overrides.get(i, self._kd))
                    for i in range(20)]
             self._hand.mit_params().set(arr)
             back = self._hand.mit_params().get()
-            for i, want in self._kp_overrides.items():
-                got = float(back[i].kp)
-                mark = "OK" if abs(got - want) < 1e-3 else "MISMATCH!"
-                print(f"[hand2] kp override joint[{i}] "
-                      f"(finger{i // 4 + 1}_joint{i % 4 + 1}): "
-                      f"kp={got:g} ({mark})")
+            for name, overrides in (("kp", self._kp_overrides),
+                                    ("kd", self._kd_overrides)):
+                for i, want in sorted(overrides.items()):
+                    got = float(getattr(back[i], name))
+                    mark = "OK" if abs(got - want) < 1e-3 else "MISMATCH!"
+                    print(f"[hand2] {name} override joint[{i}] "
+                          f"(finger{i // 4 + 1}_joint{i % 4 + 1}): "
+                          f"{name}={got:g} ({mark})")
         else:
             self._hand.mit_params().set((self._kp, self._kd))
         self._hand.enable()

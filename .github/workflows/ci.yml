@@ -82,6 +82,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: Install OSMesa
         run: |
@@ -131,7 +133,7 @@ jobs:
       - name: Validate reorient sim-to-deploy parity
         run: |
           # Gen 1 only skips when its asset is absent; a CI checkout must contain it.
-          test -f src/wuji_mjlab/assets/robots/wuji_hand/mjcf/right_mjlab.xml
+          test -f src/wuji_mjlab/assets/robots/wuji-description/hand/body-with-soft/mjcf/right_simplified.xml
           python src/wuji_mjlab/tasks/reorient/tooling/validate_obs_vs_sim.py \
             --gen 1 --hand right --steps 20
           python src/wuji_mjlab/tasks/reorient/tooling/validate_obs_vs_sim.py \

@@ -26,7 +26,7 @@
     <!-- Deploy-specific calibration chain. The robot entity is attached under
          tag100_body by lib/scene_builder (frame carries PALM_MOUNT_POS/QUAT, the
          offset that used to be baked into hand.xml's palm_link). Kept out of the
-         robot asset so assets/robots/wuji_hand2 stays a verbatim upstream copy. -->
+         robot asset so the wuji-description hand2 MJCF loads unmodified. -->
     <body name="wuji_mount" pos="0 0 0" quat="1 0 0 0">
       <site name="wuji_mount_frame" pos="0 0 0" type="sphere" size="0.02" rgba="1 1 1 0.3" group="0"/>
       <body name="tag100_body" pos="0 0 0">
