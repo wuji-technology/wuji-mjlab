@@ -33,14 +33,14 @@ The ONNX policy loads through a loader that reads the sidecar JSON for control-m
 
 ## Run the Closed Loop
 
-After the hardware setup is complete, run each command in its own terminal, in order. `home` is a one-shot reset. `vision` and `play-real` both stay running, so they can't share a terminal. `home` and `play-real` default to Wuji Hand 2; for Wuji Hand 1, add `--gen 1` after `--hand right`.
+After the hardware setup is complete, run each command in its own terminal, in order. `home` homes the hand and holds the default pose until Ctrl+C; exit it before starting `play-real`, which homes the hand again itself. `vision` and `play-real` both stay running, so they can't share a terminal. `home`, `play-real` and `render` default to Wuji Hand 2; for Wuji Hand 1, add `--gen 1` after `--hand right`.
 
 ```bash
-# Terminal 1 — one-shot reset, then exits
+# Terminal 1 — home and hold; Ctrl+C before starting play-real
 pixi run -e reorient-deploy home -- --hand right
 # Terminal 2 — cube observer, stays running (OpenCV preview)
 pixi run -e reorient-deploy vision
-# Terminal 3 — closed-loop control + mirror viewer, stays running
+# Terminal 3 — closed-loop control, stays running
 pixi run -e reorient-deploy play-real -- --hand right --ckpt <path-to.onnx>
 ```
 
@@ -70,7 +70,7 @@ Tuning by symptom:
 
 ## End-to-End Smoke Test
 
-Walk these five checkpoints in order. If any fails, jump back to the indicated setup section before continuing. For Wuji Hand 1, add `--gen 1` to the `home` and `play-real` commands.
+Walk these five checkpoints in order. If any fails, jump back to the indicated setup section before continuing. For Wuji Hand 1, add `--gen 1` to the `home`, `render` and `play-real` commands.
 
 ### Step 1 — Home the Hand
 
@@ -78,7 +78,7 @@ Walk these five checkpoints in order. If any fails, jump back to the indicated s
 pixi run -e reorient-deploy home -- --hand right
 ```
 
-Expected: a 3-second smooth ramp, 20 joints landing within ±2° of home, and a "home reached" message. Finger stutter or a hard stop means you should first stop control and cut actuator power so the joints are de-energized, then unplug and re-plug the USB cable and retry.
+Expected: a smooth ramp to the default pose, 20 joints landing within ±2° of home, and a "holding at default pose" message; the hand holds the pose until Ctrl+C. Finger stutter or a hard stop means you should first stop control and cut actuator power so the joints are de-energized, then unplug and re-plug the USB cable and retry.
 
 ### Step 2 — Start the Cube Observer
 
@@ -116,10 +116,10 @@ You should see three fresh frame numbers and stable positions.
 With `vision` still running:
 
 ```bash
-pixi run -e reorient-deploy python deploy/reorient/tools/calib_check.py
+pixi run -e reorient-deploy render -- --hand right
 ```
 
-This opens a MuJoCo passive viewer of the digital twin. The hand mirrors live encoder readings, and the cube renders at the observer's pose estimate. Move the physical cube and watch the rendered cube follow. This catches what the ZMQ check can't:
+This opens a MuJoCo passive viewer of the digital twin. The cube renders at the observer's pose estimate; the hand mirrors live joints while `play-real` runs and otherwise sits at its default pose. Move the physical cube and watch the rendered cube follow. This catches what the ZMQ check can't:
 
 - **Axis mismatches** — rotate the physical cube around one face axis and confirm the rendered cube rotates around the same axis. A mirrored or 90°-off rotation means the `face_rotations` in `cube_tags.json` are wrong, or a tag was placed in the wrong orientation.
 - **Position offset** — center the cube on the palm. The rendered cube should sit on the palm geom. A > 2 cm offset usually means the hand mounting or camera intrinsics are off.
@@ -130,7 +130,7 @@ This opens a MuJoCo passive viewer of the digital twin. The hand mirrors live en
 pixi run -e reorient-deploy play-real -- --hand right --ckpt <path-to.onnx>
 ```
 
-Expected: the ONNX policy loads and prints its sidecar JSON, the hand homes, a passive MuJoCo mirror viewer opens (real joints, observed cube, and a translucent goal cube above), and the hand reorients the cube toward the goal with trial outcomes printed inline.
+Expected: the ONNX policy loads and prints its sidecar JSON, the hand homes, and after you press ENTER at the safety prompt the hand reorients the cube toward the goal with trial outcomes printed inline. `play-real` opens no viewer; keep `render` from Step 4 running to watch the mirror.
 
 ### Troubleshooting
 

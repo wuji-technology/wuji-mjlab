@@ -33,14 +33,14 @@ ONNX 策略通过一个 loader 加载，它读取 sidecar JSON 中导出时捕�
 
 ## 运行闭环
 
-完成硬件设置后，三个命令各自在独立终端按顺序运行。`home` 是一次性复位。`vision` 与 `play-real` 都会持续运行，不能共用一个终端。`home` 与 `play-real` 默认对应 Wuji Hand 2；使用 Wuji Hand 1 时在 `--hand right` 后加 `--gen 1`。
+完成硬件设置后，三个命令各自在独立终端按顺序运行。`home` 让手回零并保持默认姿态，直到按 Ctrl+C；启动 `play-real` 前先退出它，`play-real` 会自行再回零一次。`vision` 与 `play-real` 都会持续运行，不能共用一个终端。`home`、`play-real` 与 `render` 默认对应 Wuji Hand 2；使用 Wuji Hand 1 时在 `--hand right` 后加 `--gen 1`。
 
 ```bash
-# 终端 1 —— 一次性复位，随后退出
+# 终端 1 —— 回零并保持；启动 play-real 前按 Ctrl+C 退出
 pixi run -e reorient-deploy home -- --hand right
 # 终端 2 —— cube observer，持续运行（OpenCV 预览）
 pixi run -e reorient-deploy vision
-# 终端 3 —— 闭环控制 + mirror viewer，持续运行
+# 终端 3 —— 闭环控制，持续运行
 pixi run -e reorient-deploy play-real -- --hand right --ckpt <path-to.onnx>
 ```
 
@@ -70,7 +70,7 @@ pixi run -e reorient-deploy play-real -- --hand right --ckpt <path-to.onnx>
 
 ## 端到端冒烟测试
 
-按顺序走完以下五个检查点。若任何一步失败，先跳回对应设置章节再继续。使用 Wuji Hand 1 时，`home` 与 `play-real` 命令加 `--gen 1`。
+按顺序走完以下五个检查点。若任何一步失败，先跳回对应设置章节再继续。使用 Wuji Hand 1 时，`home`、`render` 与 `play-real` 命令加 `--gen 1`。
 
 ### 步骤 1 — 让手回零
 
@@ -78,7 +78,7 @@ pixi run -e reorient-deploy play-real -- --hand right --ckpt <path-to.onnx>
 pixi run -e reorient-deploy home -- --hand right
 ```
 
-预期：3 秒平滑斜坡，20 个关节都落入 home 位置 ±2° 内，打印 "home reached"。手指抖动或硬卡停时，先停止控制并断开执行器电源、确认关节已去力，再拔插 USB 线重试。
+预期：手部平滑移动到默认姿态，20 个关节都落入 home 位置 ±2° 内，打印 "holding at default pose"，之后保持该姿态直到按 Ctrl+C。手指抖动或硬卡停时，先停止控制并断开执行器电源、确认关节已去力，再拔插 USB 线重试。
 
 ### 步骤 2 — 启动 cube observer
 
@@ -116,10 +116,10 @@ EOF
 保持 `vision` 仍在运行：
 
 ```bash
-pixi run -e reorient-deploy python deploy/reorient/tools/calib_check.py
+pixi run -e reorient-deploy render -- --hand right
 ```
 
-这会打开一个 MuJoCo passive viewer 渲染数字孪生，手部 mirror 实时 encoder 读数，cube 显示在 observer 估计的位姿上。移动物理 cube，观察渲染 cube 是否跟随。相比 ZMQ 检查，这一步还能查出：
+这会打开一个 MuJoCo passive viewer 渲染数字孪生，cube 显示在 observer 估计的位姿上；`play-real` 运行时手部 mirror 实时关节，否则保持默认姿态。移动物理 cube，观察渲染 cube 是否跟随。相比 ZMQ 检查，这一步还能查出：
 
 - **轴向错配**——让物理 cube 绕某个面轴旋转，渲染 cube 应绕同一个轴。镜像或 90° 偏差意味着 `cube_tags.json` 的 `face_rotations` 不对，或某个 tag 贴反了。
 - **位置偏差**——把 cube 放在手掌中心，渲染 cube 应落在 palm geom 上。> 2 cm 偏差通常意味着手部安装或相机内参有问题。
@@ -130,7 +130,7 @@ pixi run -e reorient-deploy python deploy/reorient/tools/calib_check.py
 pixi run -e reorient-deploy play-real -- --hand right --ckpt <path-to.onnx>
 ```
 
-预期：ONNX 策略加载并打印 sidecar JSON，手部回零，一个 passive MuJoCo mirror viewer 打开（显示真实关节、观测到的 cube，以及上方的半透明目标 cube），手部把 cube 朝目标姿态调整，各次试验结果实时打印。
+预期：ONNX 策略加载并打印 sidecar JSON，手部回零，在安全提示处按 ENTER 后手部把 cube 朝目标姿态调整，各次试验结果实时打印。`play-real` 本身不打开观察窗口，保持步骤 4 的 `render` 运行即可观察镜像。
 
 ### 排错
 
