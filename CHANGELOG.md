@@ -32,6 +32,12 @@ and this project uses calendar versioning (YYYY.M.D).
   actuators and deploy gains are unchanged. Existing PenSpin checkpoints were
   trained with the old actuators.
 
+### Removed
+
+- Automatic docs-center notifications for documentation pull requests and
+  pushes to `main`; this repository no longer dispatches documentation preview
+  or publish events to `wuji-docs-center`.
+
 ## [2026.9.27]
 
 ### Added
