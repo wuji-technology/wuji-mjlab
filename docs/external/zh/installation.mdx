@@ -23,13 +23,13 @@ wuji-mjlab 通过 [pixi](https://pixi.sh) 安装，由 lockfile 解析完整的 
 # 1. install pixi (one-time)
 curl -fsSL https://pixi.sh/install.sh | bash
 
-# 2. clone and resolve the environment
-git clone https://github.com/wuji-technology/wuji-mjlab
+# 2. clone with the wuji-description submodule and resolve the environment
+git clone --recurse-submodules https://github.com/wuji-technology/wuji-mjlab
 cd wuji-mjlab
 pixi install
 ```
 
-这一步生成训练与评测用的 `default` 环境。如需 sim-to-real 桥，再安装可选的 `deploy` 环境：
+这一步生成训练与评测用的 `default` 环境。Wuji Hand 1 和 Hand 2 的模型都从 `src/wuji_mjlab/assets/robots/wuji-description` 子模块读取；已有的克隆用 `git submodule update --init` 拉取。如需 sim-to-real 桥，再安装可选的 `deploy` 环境：
 
 ```bash
 pixi install -e deploy

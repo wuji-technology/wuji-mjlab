@@ -23,13 +23,13 @@ For sim-to-real deployment, you also need Wuji Hand hardware and a camera rig. S
 # 1. install pixi (one-time)
 curl -fsSL https://pixi.sh/install.sh | bash
 
-# 2. clone and resolve the environment
-git clone https://github.com/wuji-technology/wuji-mjlab
+# 2. clone with the wuji-description submodule and resolve the environment
+git clone --recurse-submodules https://github.com/wuji-technology/wuji-mjlab
 cd wuji-mjlab
 pixi install
 ```
 
-This produces a `default` environment for training and evaluation. For the sim-to-real bridge, add the optional `deploy` environment:
+This produces a `default` environment for training and evaluation. The Wuji Hand 1 and Hand 2 models are read from the `src/wuji_mjlab/assets/robots/wuji-description` submodule; in an existing clone, fetch it with `git submodule update --init`. For the sim-to-real bridge, add the optional `deploy` environment:
 
 ```bash
 pixi install -e deploy
