@@ -119,7 +119,7 @@ With `vision` still running:
 pixi run -e reorient-deploy render -- --hand right
 ```
 
-This opens a MuJoCo passive viewer of the digital twin. The cube renders at the observer's pose estimate; the hand mirrors live joints while `play-real` runs and otherwise sits at its default pose. Move the physical cube and watch the rendered cube follow. This catches what the ZMQ check can't:
+This opens a MuJoCo passive viewer of the digital twin. The cube renders at the observer's pose estimate. The hand starts at its default pose and mirrors live joints only while the `play-real` control loop runs: it stays put while `play-real` homes and waits for ENTER, and it keeps the last published frame after `play-real` exits. Move the physical cube and watch the rendered cube follow. This catches what the ZMQ check can't:
 
 - **Axis mismatches** — rotate the physical cube around one face axis and confirm the rendered cube rotates around the same axis. A mirrored or 90°-off rotation means the `face_rotations` in `cube_tags.json` are wrong, or a tag was placed in the wrong orientation.
 - **Position offset** — center the cube on the palm. The rendered cube should sit on the palm geom. A > 2 cm offset usually means the hand mounting or camera intrinsics are off.
@@ -130,7 +130,7 @@ This opens a MuJoCo passive viewer of the digital twin. The cube renders at the 
 pixi run -e reorient-deploy play-real -- --hand right --ckpt <path-to.onnx>
 ```
 
-Expected: the ONNX policy loads and prints its sidecar JSON, the hand homes, and after you press ENTER at the safety prompt the hand reorients the cube toward the goal with trial outcomes printed inline. `play-real` opens no viewer; keep `render` from Step 4 running to watch the mirror.
+Expected: the ONNX policy loads; once `vision` delivers a cube pose, `play-real` prints the sidecar JSON and homes the hand, and after you press ENTER at the safety prompt the hand reorients the cube toward the goal with trial outcomes printed inline. `play-real` opens no viewer; keep `render` from Step 4 running to watch the mirror.
 
 ### Troubleshooting
 
