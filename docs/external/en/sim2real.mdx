@@ -33,15 +33,15 @@ The ONNX policy loads through a loader that reads the sidecar JSON for control-m
 
 ## Run the Closed Loop
 
-After the hardware setup is complete, run each command in its own terminal, in order. `home` is a one-shot reset. `vision` and `play-real` both stay running, so they can't share a terminal.
+After the hardware setup is complete, run each command in its own terminal, in order. `home` is a one-shot reset. `vision` and `play-real` both stay running, so they can't share a terminal. `home` and `play-real` default to Wuji Hand 2; for Wuji Hand 1, add `--gen 1` after `--hand right`.
 
 ```bash
 # Terminal 1 — one-shot reset, then exits
-pixi run -e reorient-deploy home
+pixi run -e reorient-deploy home -- --hand right
 # Terminal 2 — cube observer, stays running (OpenCV preview)
 pixi run -e reorient-deploy vision
 # Terminal 3 — closed-loop control + mirror viewer, stays running
-pixi run -e reorient-deploy play-real --ckpt <path-to.onnx>
+pixi run -e reorient-deploy play-real -- --hand right --ckpt <path-to.onnx>
 ```
 
 ## Pose-Estimation Tuning
@@ -70,12 +70,12 @@ Tuning by symptom:
 
 ## End-to-End Smoke Test
 
-Walk these five checkpoints in order. If any fails, jump back to the indicated setup section before continuing.
+Walk these five checkpoints in order. If any fails, jump back to the indicated setup section before continuing. For Wuji Hand 1, add `--gen 1` to the `home` and `play-real` commands.
 
 ### Step 1 — Home the Hand
 
 ```bash
-pixi run -e reorient-deploy home
+pixi run -e reorient-deploy home -- --hand right
 ```
 
 Expected: a 3-second smooth ramp, 20 joints landing within ±2° of home, and a "home reached" message. Finger stutter or a hard stop means you should first stop control and cut actuator power so the joints are de-energized, then unplug and re-plug the USB cable and retry.
@@ -127,7 +127,7 @@ This opens a MuJoCo passive viewer of the digital twin. The hand mirrors live en
 ### Step 5 — Run the Closed-Loop Policy
 
 ```bash
-pixi run -e reorient-deploy play-real --ckpt <path-to.onnx>
+pixi run -e reorient-deploy play-real -- --hand right --ckpt <path-to.onnx>
 ```
 
 Expected: the ONNX policy loads and prints its sidecar JSON, the hand homes, a passive MuJoCo mirror viewer opens (real joints, observed cube, and a translucent goal cube above), and the hand reorients the cube toward the goal with trial outcomes printed inline.

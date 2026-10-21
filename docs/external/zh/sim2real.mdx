@@ -33,15 +33,15 @@ ONNX 策略通过一个 loader 加载，它读取 sidecar JSON 中导出时捕�
 
 ## 运行闭环
 
-完成硬件设置后，三个命令各自在独立终端按顺序运行。`home` 是一次性复位。`vision` 与 `play-real` 都会持续运行，不能共用一个终端。
+完成硬件设置后，三个命令各自在独立终端按顺序运行。`home` 是一次性复位。`vision` 与 `play-real` 都会持续运行，不能共用一个终端。`home` 与 `play-real` 默认对应 Wuji Hand 2；使用 Wuji Hand 1 时在 `--hand right` 后加 `--gen 1`。
 
 ```bash
 # 终端 1 —— 一次性复位，随后退出
-pixi run -e reorient-deploy home
+pixi run -e reorient-deploy home -- --hand right
 # 终端 2 —— cube observer，持续运行（OpenCV 预览）
 pixi run -e reorient-deploy vision
 # 终端 3 —— 闭环控制 + mirror viewer，持续运行
-pixi run -e reorient-deploy play-real --ckpt <path-to.onnx>
+pixi run -e reorient-deploy play-real -- --hand right --ckpt <path-to.onnx>
 ```
 
 ## 位姿估计调优
@@ -70,12 +70,12 @@ pixi run -e reorient-deploy play-real --ckpt <path-to.onnx>
 
 ## 端到端冒烟测试
 
-按顺序走完以下五个检查点。若任何一步失败，先跳回对应设置章节再继续。
+按顺序走完以下五个检查点。若任何一步失败，先跳回对应设置章节再继续。使用 Wuji Hand 1 时，`home` 与 `play-real` 命令加 `--gen 1`。
 
 ### 步骤 1 — 让手回零
 
 ```bash
-pixi run -e reorient-deploy home
+pixi run -e reorient-deploy home -- --hand right
 ```
 
 预期：3 秒平滑斜坡，20 个关节都落入 home 位置 ±2° 内，打印 "home reached"。手指抖动或硬卡停时，先停止控制并断开执行器电源、确认关节已去力，再拔插 USB 线重试。
@@ -127,7 +127,7 @@ pixi run -e reorient-deploy python deploy/reorient/tools/calib_check.py
 ### 步骤 5 — 运行闭环策略
 
 ```bash
-pixi run -e reorient-deploy play-real --ckpt <path-to.onnx>
+pixi run -e reorient-deploy play-real -- --hand right --ckpt <path-to.onnx>
 ```
 
 预期：ONNX 策略加载并打印 sidecar JSON，手部回零，一个 passive MuJoCo mirror viewer 打开（显示真实关节、观测到的 cube，以及上方的半透明目标 cube），手部把 cube 朝目标姿态调整，各次试验结果实时打印。
