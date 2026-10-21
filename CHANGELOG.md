@@ -34,9 +34,12 @@ and this project uses calendar versioning (YYYY.M.D).
 
 ### Removed
 
-- Automatic docs-center notifications for documentation pull requests and
-  pushes to `main`; this repository no longer dispatches documentation preview
-  or publish events to `wuji-docs-center`.
+- External documentation automation: documentation is now maintained in this
+  repository. Remove docs-center preview/publish notifications, post-merge
+  documentation follow-up labels and comments, Feishu notifications,
+  `/docs-done` and `/docs-skip` comment callbacks, automatic merges into
+  `docs-prerelease` and conflict issues, and the associated scripts and
+  path-filter configuration.
 
 ## [2026.9.27]
 
