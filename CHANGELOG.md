@@ -18,10 +18,10 @@
   `src/wuji_mjlab/assets/robots/wuji-description`. Fingertips move about 5 mm
   in the palm frame, the thumb distal link is about 48% lighter and most link
   inertias change; actuator gains, force limits and joint limits stay the same.
-  Released Hand 2 Reorient and PenSpin checkpoints were trained on Beta 2. The
-  loader keeps the palm as the root body with the upstream mount as its child
-  (collision disabled in both tasks), and drops the wrist IMU sensors. Clone
-  with `--recurse-submodules` or run `git submodule update --init`. PenSpin
+  Released Hand 2 Reorient checkpoints were trained on Beta 2. The loader keeps
+  the palm as the root body with the upstream mount as its child (collision
+  disabled in both tasks), and drops the wrist IMU sensors. Clone with
+  `--recurse-submodules` or run `git submodule update --init`. PenSpin
   fingertip bump `force_scale` becomes 2.8 (thumb) / 1.6.
 - Wuji Hand 1: load `hand/body-with-soft/mjcf/right_simplified.xml` from the
   same submodule and apply the task edits in code; the compiled model is

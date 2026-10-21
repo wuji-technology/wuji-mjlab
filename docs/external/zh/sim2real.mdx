@@ -37,11 +37,11 @@ ONNX 策略通过一个 loader 加载，它读取 sidecar JSON 中导出时捕�
 
 ```bash
 # 终端 1 —— 一次性复位，随后退出
-pixi run -e deploy home
+pixi run -e reorient-deploy home
 # 终端 2 —— cube observer，持续运行（OpenCV 预览）
-pixi run -e deploy vision
+pixi run -e reorient-deploy vision
 # 终端 3 —— 闭环控制 + mirror viewer，持续运行
-pixi run -e deploy play-real --ckpt <path-to.onnx>
+pixi run -e reorient-deploy play-real --ckpt <path-to.onnx>
 ```
 
 ## 位姿估计调优
@@ -75,7 +75,7 @@ pixi run -e deploy play-real --ckpt <path-to.onnx>
 ### 步骤 1 — 让手回零
 
 ```bash
-pixi run -e deploy home
+pixi run -e reorient-deploy home
 ```
 
 预期：3 秒平滑斜坡，20 个关节都落入 home 位置 ±2° 内，打印 "home reached"。手指抖动或硬卡停时，先停止控制并断开执行器电源、确认关节已去力，再拔插 USB 线重试。
@@ -83,7 +83,7 @@ pixi run -e deploy home
 ### 步骤 2 — 启动 cube observer
 
 ```bash
-pixi run -e deploy vision
+pixi run -e reorient-deploy vision
 ```
 
 预期：OpenCV 预览出现，手腕标签保持在视野内时黄色 "World Sampling: N/100" 进度条填满，累积 100 个样本平均后标签翻为绿色 "WORLD FIXED"，cube 静止时轴向叠加图稳定。
@@ -93,7 +93,7 @@ pixi run -e deploy vision
 另开一个终端（保持 `vision` 持续运行），确认 cube 位姿正在端口 5555 上发布：
 
 ```bash
-pixi run -e deploy python - <<'EOF'
+pixi run -e reorient-deploy python - <<'EOF'
 import json, zmq
 sock = zmq.Context().socket(zmq.SUB)
 sock.connect("tcp://localhost:5555")
@@ -116,7 +116,7 @@ EOF
 保持 `vision` 仍在运行：
 
 ```bash
-pixi run -e deploy python deploy/reorient/tools/calib_check.py
+pixi run -e reorient-deploy python deploy/reorient/tools/calib_check.py
 ```
 
 这会打开一个 MuJoCo passive viewer 渲染数字孪生，手部 mirror 实时 encoder 读数，cube 显示在 observer 估计的位姿上。移动物理 cube，观察渲染 cube 是否跟随。相比 ZMQ 检查，这一步还能查出：
@@ -127,7 +127,7 @@ pixi run -e deploy python deploy/reorient/tools/calib_check.py
 ### 步骤 5 — 运行闭环策略
 
 ```bash
-pixi run -e deploy play-real --ckpt <path-to.onnx>
+pixi run -e reorient-deploy play-real --ckpt <path-to.onnx>
 ```
 
 预期：ONNX 策略加载并打印 sidecar JSON，手部回零，一个 passive MuJoCo mirror viewer 打开（显示真实关节、观测到的 cube，以及上方的半透明目标 cube），手部把 cube 朝目标姿态调整，各次试验结果实时打印。

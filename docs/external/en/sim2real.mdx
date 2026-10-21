@@ -37,11 +37,11 @@ After the hardware setup is complete, run each command in its own terminal, in o
 
 ```bash
 # Terminal 1 — one-shot reset, then exits
-pixi run -e deploy home
+pixi run -e reorient-deploy home
 # Terminal 2 — cube observer, stays running (OpenCV preview)
-pixi run -e deploy vision
+pixi run -e reorient-deploy vision
 # Terminal 3 — closed-loop control + mirror viewer, stays running
-pixi run -e deploy play-real --ckpt <path-to.onnx>
+pixi run -e reorient-deploy play-real --ckpt <path-to.onnx>
 ```
 
 ## Pose-Estimation Tuning
@@ -75,7 +75,7 @@ Walk these five checkpoints in order. If any fails, jump back to the indicated s
 ### Step 1 — Home the Hand
 
 ```bash
-pixi run -e deploy home
+pixi run -e reorient-deploy home
 ```
 
 Expected: a 3-second smooth ramp, 20 joints landing within ±2° of home, and a "home reached" message. Finger stutter or a hard stop means you should first stop control and cut actuator power so the joints are de-energized, then unplug and re-plug the USB cable and retry.
@@ -83,7 +83,7 @@ Expected: a 3-second smooth ramp, 20 joints landing within ±2° of home, and a 
 ### Step 2 — Start the Cube Observer
 
 ```bash
-pixi run -e deploy vision
+pixi run -e reorient-deploy vision
 ```
 
 Expected: the OpenCV preview appears, a yellow "World Sampling: N/100" bar fills as the wrist tag stays in view, the label flips to green "WORLD FIXED" once 100 samples are averaged, and the cube axes overlay holds steady on a static cube.
@@ -93,7 +93,7 @@ Expected: the OpenCV preview appears, a yellow "World Sampling: N/100" bar fills
 In another terminal (keep `vision` running), confirm cube poses publish on port 5555:
 
 ```bash
-pixi run -e deploy python - <<'EOF'
+pixi run -e reorient-deploy python - <<'EOF'
 import json, zmq
 sock = zmq.Context().socket(zmq.SUB)
 sock.connect("tcp://localhost:5555")
@@ -116,7 +116,7 @@ You should see three fresh frame numbers and stable positions.
 With `vision` still running:
 
 ```bash
-pixi run -e deploy python deploy/reorient/tools/calib_check.py
+pixi run -e reorient-deploy python deploy/reorient/tools/calib_check.py
 ```
 
 This opens a MuJoCo passive viewer of the digital twin. The hand mirrors live encoder readings, and the cube renders at the observer's pose estimate. Move the physical cube and watch the rendered cube follow. This catches what the ZMQ check can't:
@@ -127,7 +127,7 @@ This opens a MuJoCo passive viewer of the digital twin. The hand mirrors live en
 ### Step 5 — Run the Closed-Loop Policy
 
 ```bash
-pixi run -e deploy play-real --ckpt <path-to.onnx>
+pixi run -e reorient-deploy play-real --ckpt <path-to.onnx>
 ```
 
 Expected: the ONNX policy loads and prints its sidecar JSON, the hand homes, a passive MuJoCo mirror viewer opens (real joints, observed cube, and a translucent goal cube above), and the hand reorients the cube toward the goal with trial outcomes printed inline.

@@ -36,7 +36,7 @@ By the end you'll have a calibrated camera, a 3D-printed ArUco cube, a wrist Apr
 
 - Ubuntu 22.04 LTS, x86_64
 - NVIDIA driver bundled with CUDA 12.8 (`nvidia-smi` should report it)
-- [pixi](https://pixi.sh) ≥ 0.66 in your `$PATH`
+- [pixi](https://pixi.sh) ≥ 0.72 in your `$PATH`
 
 ### Hikvision MVS SDK
 
@@ -100,13 +100,13 @@ Common issues:
 Install the deploy environment from the repo root:
 
 ```bash
-pixi install -e deploy
+pixi install -e reorient-deploy
 ```
 
 This pulls in OpenCV (ArUco and IPPE), pupil-apriltags (wrist tag), pyzmq (cube and goal pub-sub), glfw (passive MuJoCo viewer), the Wuji Hand SDK, and pyyaml. Smoke-test:
 
 ```bash
-pixi run -e deploy python -c "import cv2, pupil_apriltags, zmq, wujihandpy; print(cv2.__version__)"
+pixi run -e reorient-deploy python -c "import cv2, pupil_apriltags, zmq, wujihandpy; print(cv2.__version__)"
 ```
 
 ## Cube Fabrication
@@ -231,7 +231,7 @@ Mount the camera so the cube's reachable workspace and the wrist AprilTag both s
 Don't hand-edit `fast_roi` in `camera.yaml`. The vision program ships an interactive selector. With the camera mounted:
 
 ```bash
-pixi run -e deploy vision
+pixi run -e reorient-deploy vision
 ```
 
 In the preview window, press **`s`** to open the ROI dialog. Drag a rectangle around the cube's reachable workspace, then press ENTER or SPACE to confirm. The observer snaps the ROI to multiples of 8, writes it to `camera.yaml` atomically, and applies it live without restarting capture.
@@ -260,7 +260,7 @@ Print an 11 × 8 inner-corner board (12 × 9 squares) with 20 mm squares to matc
 ### Run the Guided Calibrator
 
 ```bash
-pixi run -e deploy python deploy/reorient/tools/camera_calibrate.py
+pixi run -e reorient-deploy python deploy/reorient/tools/camera_calibrate.py
 ```
 
 The tool walks through 14 capture tasks (center, left, right, top, bottom regions, near, mid, far distance, straight, tilted attitude) and auto-captures when the region, size, and tilt are in range.
@@ -273,6 +273,6 @@ The calibrator writes `camera_calibration.npz` but does not update `camera.yaml`
 
 ### Sanity Check
 
-Run `pixi run -e deploy vision` in preview mode. The wrist-tag pose should hold steady to sub-pixel jitter when held still. Frequent PnP rejections mean the intrinsics are under-fit — return to Run the Guided Calibrator and capture more tilted samples.
+Run `pixi run -e reorient-deploy vision` in preview mode. The wrist-tag pose should hold steady to sub-pixel jitter when held still. Frequent PnP rejections mean the intrinsics are under-fit — return to Run the Guided Calibrator and capture more tilted samples.
 
 With the rig calibrated, continue to [Sim-to-real Deployment](../sim2real) for pose tuning, the closed-loop run, and the end-to-end smoke test.

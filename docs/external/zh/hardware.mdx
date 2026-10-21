@@ -36,7 +36,7 @@ description: 搭建 reorient 策略的 sim-to-real 装置——相机、MVS SDK�
 
 - Ubuntu 22.04 LTS，x86_64
 - 与 CUDA 12.8 配套的 NVIDIA 驱动（`nvidia-smi` 应能正常报告）
-- [pixi](https://pixi.sh) ≥ 0.66，已加入 `$PATH`
+- [pixi](https://pixi.sh) ≥ 0.72，已加入 `$PATH`
 
 ### Hikvision MVS SDK
 
@@ -100,13 +100,13 @@ python3 -c "import sys; sys.path.insert(0, '/opt/MVS/Samples/64/Python'); from M
 从仓库根目录安装 deploy 环境：
 
 ```bash
-pixi install -e deploy
+pixi install -e reorient-deploy
 ```
 
 它拉取 OpenCV（ArUco 与 IPPE）、pupil-apriltags（手腕标签）、pyzmq（cube 与 goal pub-sub）、glfw（passive MuJoCo viewer）、Wuji Hand SDK 与 pyyaml。冒烟测试：
 
 ```bash
-pixi run -e deploy python -c "import cv2, pupil_apriltags, zmq, wujihandpy; print(cv2.__version__)"
+pixi run -e reorient-deploy python -c "import cv2, pupil_apriltags, zmq, wujihandpy; print(cv2.__version__)"
 ```
 
 ## Cube 制作
@@ -231,7 +231,7 @@ release 附件的 `hardware/hand-jig/` 目录提供 `assembly.pdf`（带标注�
 请勿手动编辑 `camera.yaml` 中的 `fast_roi`，vision 程序已内置交互式选择器。相机安装好后：
 
 ```bash
-pixi run -e deploy vision
+pixi run -e reorient-deploy vision
 ```
 
 在预览窗口按 **`s`** 打开 ROI 对话框，在 cube 的可达工作空间上拖出一个矩形，按 ENTER 或 SPACE 确认。Observer 会把 ROI 对齐到 8 的倍数，原子地写入 `camera.yaml`，并实时应用、无需重启采集。
@@ -260,7 +260,7 @@ Vision 窗口的其他快捷键：
 ### 运行引导式标定器
 
 ```bash
-pixi run -e deploy python deploy/reorient/tools/camera_calibrate.py
+pixi run -e reorient-deploy python deploy/reorient/tools/camera_calibrate.py
 ```
 
 工具引导走完 14 个采集任务（中心、左、右、上、下区域，近、中、远距离，正视、倾斜姿态），当区域、尺寸、倾角进入范围时自动采集。
@@ -273,6 +273,6 @@ pixi run -e deploy python deploy/reorient/tools/camera_calibrate.py
 
 ### 合理性校验
 
-运行 `pixi run -e deploy vision`（预览模式）。手腕标签静止时，其位姿应稳定到亚像素级抖动。频繁的 PnP 拒绝意味着内参拟合不足——回到「运行引导式标定器」多采集倾斜样本。
+运行 `pixi run -e reorient-deploy vision`（预览模式）。手腕标签静止时，其位姿应稳定到亚像素级抖动。频繁的 PnP 拒绝意味着内参拟合不足——回到「运行引导式标定器」多采集倾斜样本。
 
 装置标定好后，继续到 [Sim-to-real 部署](../sim2real) 做位姿调优、闭环运行与端到端冒烟测试。

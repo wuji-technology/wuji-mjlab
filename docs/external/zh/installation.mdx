@@ -13,7 +13,7 @@ wuji-mjlab 通过 [pixi](https://pixi.sh) 安装，由 lockfile 解析完整的 
 
 - Linux x86_64
 - NVIDIA GPU，CUDA 12.8（支持 Blackwell sm_120 / RTX 50 系列）
-- [pixi](https://pixi.sh) ≥ 0.66（CI 用的版本）
+- [pixi](https://pixi.sh) ≥ 0.72（CI 用的版本）
 
 用于 sim-to-real 部署时，还需要 Wuji Hand 硬件与相机装置，完整硬件清单见[硬件搭建](../hardware)。
 
@@ -29,10 +29,11 @@ cd wuji-mjlab
 pixi install
 ```
 
-这一步生成训练与评测用的 `default` 环境。Wuji Hand 1 和 Hand 2 的模型都从 `src/wuji_mjlab/assets/robots/wuji-description` 子模块读取；已有的克隆用 `git submodule update --init` 拉取。如需 sim-to-real 桥，再安装可选的 `deploy` 环境：
+这一步生成训练与评测用的 `default` 环境。Wuji Hand 1 和 Hand 2 的模型都从 `src/wuji_mjlab/assets/robots/wuji-description` 子模块读取；已有的克隆用 `git submodule update --init` 拉取。如需 sim-to-real 桥，再按要部署的任务安装可选的 deploy 环境：
 
 ```bash
-pixi install -e deploy
+pixi install -e reorient-deploy   # 转方块
+pixi install -e pen-spin-deploy   # 转笔
 ```
 
 ## 验证
