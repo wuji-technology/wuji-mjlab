@@ -17,6 +17,8 @@ from wuji_reorient_deploy.onnx_policy import (
   POLICY_SCHEMA,
 )
 
+from wuji_mjlab.assets.robots.wuji_hand.wuji_hand_cfg import wuji_hand_xml_path
+from wuji_mjlab.assets.robots.wuji_hand2.wuji_hand2_cfg import wuji_hand2_xml_path
 from wuji_mjlab.tasks.reorient.tooling.onnx_export_core import (
   _build_config,
   _load_yaml,
@@ -37,19 +39,11 @@ def _identity_from_run_dir(run_dir: Path) -> dict[str, Any] | None:
 
 def _identity_from_constants(gen: int, hand: str) -> dict[str, Any]:
   constants = load_constants(gen, hand)
-  hand_asset = "wuji_hand2" if gen == 2 else "wuji_hand"
+  xml_path = wuji_hand2_xml_path if gen == 2 else wuji_hand_xml_path
   return {
     "policy_schema": POLICY_SCHEMA,
     "hand_gen": gen,
-    "robot_mjcf": str(
-      Path("src")
-      / "wuji_mjlab"
-      / "assets"
-      / "robots"
-      / hand_asset
-      / "mjcf"
-      / f"{hand}_mjlab.xml"
-    ),
+    "robot_mjcf": str(xml_path(hand)),
     "joint_order": joint_names(hand),
     "default_joint_pos": constants.default_joint_pos.tolist(),
     "default_joint_pos_source": "load_constants(gen, hand).default_joint_pos",
