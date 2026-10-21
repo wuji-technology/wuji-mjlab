@@ -1,15 +1,11 @@
 # Changelog
 
+All notable changes to this project will be documented here.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project uses calendar versioning (YYYY.M.D).
 
 ## [Unreleased]
-
-### Added
-
-- `deploy/reorient/scripts/run_policy.py`: require an operator to press
-  Enter after homing before the ONNX policy takes control of the real
-  hand (skipped in `--mock` mode).
-- sim2real setup: dimensioned hand-jig assembly drawing (`assembly.pdf`)
-  shipped in the release bundle and referenced from §5.1.
 
 ### Changed
 
@@ -35,12 +31,24 @@
   through the new `gains.kd_joint` / `--gains kd.<joint>=` overrides. Reorient
   actuators and deploy gains are unchanged. Existing PenSpin checkpoints were
   trained with the old actuators.
+
+## [2026.9.27]
+
+### Added
+
+- `deploy/reorient/scripts/run_policy.py`: require an operator to press
+  Enter after homing before the ONNX policy takes control of the real
+  hand (skipped in `--mock` mode).
+- sim2real setup: dimensioned hand-jig assembly drawing (`assembly.pdf`)
+  shipped in the release bundle and referenced from §5.1.
+
+### Changed
+
 - Require explicit `WANDB_PROJECT` and `WANDB_API_KEY` for W&B logging;
   TensorBoard and local checkpoint playback/video recording remain usable
   without W&B credentials.
 - Align release documentation with five PenSpin checkpoint sets, motion clips
   and 3MF production files.
-
 - Reorient: bind fingertip slip/contact terms by finger, aggregate palm contacts,
   measure saturation against actuator force ranges, restore initial/reset action
   targets, isolate per-world command resets, and disable play-time observation injection.
@@ -62,3 +70,14 @@
 - replace the vendored rsl-rl fork with official `rsl-rl-lib==5.4.2`.
 - wrap the `scripts/record_video.py` rollout in `torch.inference_mode()`,
   fixing the mjlab 1.6.0 crash.
+
+## [2026.5.29]
+
+### Added
+
+- Released the initial public version with the `WujiHand_Reorient` task, a
+  pretrained checkpoint, and the sim-to-real deployment bridge.
+
+[Unreleased]: https://github.com/wuji-technology/wuji-mjlab/compare/v2026.9.27...HEAD
+[2026.9.27]: https://github.com/wuji-technology/wuji-mjlab/releases/tag/v2026.9.27
+[2026.5.29]: https://github.com/wuji-technology/wuji-mjlab/releases/tag/v2026.5.29
