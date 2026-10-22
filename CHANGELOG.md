@@ -33,6 +33,10 @@ and this project uses calendar versioning (YYYY.M.D).
   through the new `gains.kd_joint` / `--gains kd.<joint>=` overrides. Reorient
   actuators and deploy gains are unchanged. Existing PenSpin checkpoints were
   trained with the old actuators.
+- PenSpin setup guide: the pen tag patterns are printed in two colors from
+  `pen_heads.3mf`, so no stickers are needed; the tag textures and
+  `texture_faces.csv` apply only to single-color prints with stickers
+  ([#19](https://github.com/wuji-technology/wuji-mjlab/issues/19)).
 
 ### Removed
 
