@@ -43,6 +43,12 @@ and this project uses calendar versioning (YYYY.M.D).
   `docs-prerelease` and conflict issues, and the associated scripts and
   path-filter configuration.
 
+### Fixed
+
+- `deploy/reorient/tools/view_release_cube.py`: default `--cube` to
+  `release-assets/reorient/hardware/cube.obj`, where the cube mesh sits in the
+  current release asset layout; the previous default no longer existed.
+
 ## [2026.9.27]
 
 ### Added

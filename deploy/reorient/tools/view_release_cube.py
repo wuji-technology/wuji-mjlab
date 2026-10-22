@@ -17,12 +17,12 @@ def main() -> int:
   parser.add_argument(
     "--cube",
     type=Path,
-    default=Path("release-assets/hardware/cube/cube.obj"),
+    default=Path("release-assets/reorient/hardware/cube.obj"),
     help=(
       "Path to cube.obj. Defaults to "
-      "release-assets/hardware/cube/cube.obj relative to cwd "
+      "release-assets/reorient/hardware/cube.obj relative to cwd "
       "(the layout produced by the unzip + rename step in "
-      "src/wuji_mjlab/tasks/reorient/docs/setup.md §3). "
+      "docs/external/en/introduction.mdx). "
       "Sibling cube.mtl and cube.png must be "
       "alongside."
     ),
@@ -33,9 +33,9 @@ def main() -> int:
     print(
       f"cube file not found: {args.cube}\n"
       "Download the release asset zip per "
-      "src/wuji_mjlab/tasks/reorient/docs/setup.md §3\n"
+      "docs/external/en/introduction.mdx\n"
       "  https://github.com/wuji-technology/wuji-mjlab/releases/latest\n"
-      "and unzip + rename so 'release-assets/hardware/cube/cube.obj'\n"
+      "and unzip + rename so 'release-assets/reorient/hardware/cube.obj'\n"
       f"lives at {args.cube.resolve()},\n"
       "or pass --cube <path> explicitly.",
       file=sys.stderr,
