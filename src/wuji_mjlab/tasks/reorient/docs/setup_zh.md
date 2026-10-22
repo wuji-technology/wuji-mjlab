@@ -6,9 +6,9 @@
 
 | 资源 | 下载链接 | 包内位置 |
 |---|---|---|
-| 方块模型、打印文件与纹理 | [合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip) | `reorient/hardware/` |
-| Wuji Hand 1 治具 | [合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip) | `hardware/hand1/` |
-| Wuji Hand 2 治具 | [合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip) | `hardware/hand2/` |
+| 方块模型、打印文件与纹理 | [合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip) | `reorient/hardware/` |
+| Wuji Hand 1 治具 | [合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip) | `hardware/hand1/` |
+| Wuji Hand 2 治具 | [合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip) | `hardware/hand2/` |
 
 以下详细搭建参数基于 Wuji Hand 1 参考装置。共享工装位于资源包根目录，Wuji Hand 1 和 Wuji Hand 2 治具分别位于 `hardware/hand1/` 和 `hardware/hand2/`，其中Wuji Hand 2 工装供转方块和转笔共用；Wuji Hand 2 请使用自己的装配图和底座，不要套用下文的 Wuji Hand 1 尺寸。策略下载见[部署文档](deploy_zh.md)。
 
@@ -128,13 +128,13 @@ pixi run -e reorient-deploy python -c "import cv2, pupil_apriltags, zmq, wujihan
 
 ## 3. 方块制作
 
-使用发布包中提供的方块模型可以直接复现参考几何。以下命令下载并解压 v2026.9.27 合并资源包：
+使用发布包中提供的方块模型可以直接复现参考几何。以下命令下载并解压 v2026.10.22 合并资源包：
 
 ```bash
-# 需要 unzip；仅在尚无 wuji-mjlab-v2026.9.27-assets 目录时执行一次
+# 需要 unzip；仅在尚无 wuji-mjlab-v2026.10.22-assets 目录时执行一次
 # 需要 GitHub CLI：https://cli.github.com；下载指定版本的资源附件
-gh release download v2026.9.27 --repo wuji-technology/wuji-mjlab --pattern 'wuji-mjlab-v2026.9.27-assets.zip'
-unzip wuji-mjlab-v2026.9.27-assets.zip
+gh release download v2026.10.22 --repo wuji-technology/wuji-mjlab --pattern 'wuji-mjlab-v2026.10.22-assets.zip'
+unzip wuji-mjlab-v2026.10.22-assets.zip
 ```
 
 解压后的 `reorient/hardware/` 提供方块文件；`hardware/hand1/` 和 `hardware/hand2/` 分别提供Wuji Hand 1 和 Wuji Hand 2 的治具。
@@ -143,14 +143,14 @@ unzip wuji-mjlab-v2026.9.27-assets.zip
 
 ```bash
 pixi run -e reorient-deploy python deploy/reorient/tools/view_release_cube.py \
-  --cube wuji-mjlab-v2026.9.27-assets/reorient/hardware/cube.obj
+  --cube wuji-mjlab-v2026.10.22-assets/reorient/hardware/cube.obj
 ```
 
-未安装 GitHub CLI 时，可在 [v2026.9.27 发布页](https://github.com/wuji-technology/wuji-mjlab/releases/tag/v2026.9.27)手动下载资源包，然后执行相同的解压步骤。
+未安装 GitHub CLI 时，可在 [v2026.10.22 发布页](https://github.com/wuji-technology/wuji-mjlab/releases/tag/v2026.10.22)手动下载资源包，然后执行相同的解压步骤。
 
 ### 3.1 打印方块
 
-使用发布包中的 **Bambu Lab `.3mf`**，路径为 `wuji-mjlab-v2026.9.27-assets/reorient/hardware/cube.3mf`。文件包含几何及黑白双色材料分配，可将 24 个 ArUco 4×4 图案直接打印到方块表面。
+使用发布包中的 **Bambu Lab `.3mf`**，路径为 `wuji-mjlab-v2026.10.22-assets/reorient/hardware/cube.3mf`。文件包含几何及黑白双色材料分配，可将 24 个 ArUco 4×4 图案直接打印到方块表面。
 
 1. 在 **Bambu Studio** 中打开 `.3mf`。
 2. 装入黑色和白色两种耗材，例如 PLA。检查 AMS 或外置料盘的分配，确保图案和底色对应正确的耗材。

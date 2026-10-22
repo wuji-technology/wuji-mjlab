@@ -16,7 +16,7 @@ Run all commands from the **repository root**. Hardware and printable resources 
 | `04_stable_grasp_rotation` | Stable grasp rotation |
 | `05_multi_axis_two_rotations` | Multi-axis two rotations |
 
-The [v2026.9.27 asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip) contains PenSpin hardware, motion data and five matched checkpoint sets under `pen_spin/checkpoints/<group>/`. Copy the bundle's `pen_spin/checkpoints/` into `src/wuji_mjlab/tasks/pen_spin/data/checkpoints/`, preserving group directories and all companion files as shown below. Dataset downloads and training steps are in [Train](train.md).
+The [v2026.10.22 asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip) contains PenSpin hardware, motion data and five matched checkpoint sets under `pen_spin/checkpoints/<group>/`. Copy the bundle's `pen_spin/checkpoints/` into `src/wuji_mjlab/tasks/pen_spin/data/checkpoints/`, preserving group directories and all companion files as shown below. Dataset downloads and training steps are in [Train](train.md).
 
 ```text
 src/wuji_mjlab/tasks/pen_spin/data/checkpoints/<group>/

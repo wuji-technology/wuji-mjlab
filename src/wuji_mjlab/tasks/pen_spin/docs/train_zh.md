@@ -17,13 +17,13 @@ pixi run list-envs
 
 | 数据组 ID | 动作 | 数据集下载 |
 | --- | --- | --- |
-| `01_single_axis` | 单轴旋转 | [合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip) |
-| `02_continuous_single_axis` | 连续单轴旋转 | [合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip) |
-| `03_continuous_multi_axis` | 连续多轴旋转 | [合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip) |
-| `04_stable_grasp_rotation` | 稳定抓握旋转 | [合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip) |
-| `05_multi_axis_two_rotations` | 多轴两次旋转 | [合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip) |
+| `01_single_axis` | 单轴旋转 | [合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip) |
+| `02_continuous_single_axis` | 连续单轴旋转 | [合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip) |
+| `03_continuous_multi_axis` | 连续多轴旋转 | [合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip) |
+| `04_stable_grasp_rotation` | 稳定抓握旋转 | [合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip) |
+| `05_multi_axis_two_rotations` | 多轴两次旋转 | [合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip) |
 
-5 组共 40 段轨迹及各组 recipe 随 [v2026.9.27 合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip) 提供。解压后，将 `pen_spin/data/rawdata/clips/` 与 `pen_spin/data/recipe/` 分别复制到下方任务目录的对应位置。各组轨迹数依次为 10、4、9、10、7。本地已有这些数据时可直接使用。5 组配套 checkpoint 已包含在 `pen_spin/checkpoints/`，下载与放置说明见 [部署](deploy_zh.md)。
+5 组共 40 段轨迹及各组 recipe 随 [v2026.10.22 合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip) 提供。解压后，将 `pen_spin/data/rawdata/clips/` 与 `pen_spin/data/recipe/` 分别复制到下方任务目录的对应位置。各组轨迹数依次为 10、4、9、10、7。本地已有这些数据时可直接使用。5 组配套 checkpoint 已包含在 `pen_spin/checkpoints/`，下载与放置说明见 [部署](deploy_zh.md)。
 
 ```text
 src/wuji_mjlab/tasks/pen_spin/data/

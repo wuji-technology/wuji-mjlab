@@ -111,7 +111,7 @@ pixi run -e reorient-deploy python -c "import cv2, pupil_apriltags, zmq, wujihan
 
 ## Cube 制作
 
-最快路径是用 release 附件里的资产复现参考 cube。下载 release zip（`gh` 命令见[简介](../introduction)），会产生一个 `release-assets/` 目录，其中 `hardware/cube/` 含 `.3mf`、`.step`、`.obj` 与 `.png` 文件。Cube 是棱长 54 mm 的实心立方体，每面 4 × 13 mm ArUco 标签（共 24 个，ID 0–23）。真实性能依赖尺寸与 `cube_tags.json` 的偏差控制在约 0.5 mm 内。
+最快路径是用 release 附件里的资产复现参考 cube。下载 release zip（`gh` 命令见[简介](../introduction)），会产生一个 `release-assets/` 目录，其中 `reorient/hardware/` 含 `.3mf`、`.step`、`.obj` 与 `.png` 文件。Cube 是棱长 54 mm 的实心立方体，每面 4 × 13 mm ArUco 标签（共 24 个，ID 0–23）。真实性能依赖尺寸与 `cube_tags.json` 的偏差控制在约 0.5 mm 内。
 
 打印前若要 3D 检视 24 个标签的布局：
 
@@ -121,7 +121,7 @@ pixi run python deploy/reorient/tools/view_release_cube.py
 
 ### 3D 打印 cube
 
-使用随包发布的 Bambu Lab `.3mf`（`release-assets/hardware/cube/cube.3mf`）。它包含 cube 几何以及双材料分配，能直接把 24 个 ArUco 标签图案打印到各面上，无需贴纸、胶水或对齐操作。
+使用随包发布的 Bambu Lab `.3mf`（`release-assets/reorient/hardware/cube.3mf`）。它包含 cube 几何以及双材料分配，能直接把 24 个 ArUco 标签图案打印到各面上，无需贴纸、胶水或对齐操作。
 
 1. 在 Bambu Studio 中打开该文件，或拖到已连接的 Bambu 打印机上。
 2. 装载两种耗材，一黑一白（PLA 即可）。切片软件会提示分配槽位，`.3mf` 已声明哪个逻辑槽是 tag、哪个是 base，请确认实际耗材对应正确。
@@ -201,7 +201,7 @@ Wuji Hand 装在一个 3D 打印治具上，治具用螺丝固定在铝合金蜂
 
 ![灵巧手在治具上的侧视图](./images/hand-jig-side.jpg)
 
-release 附件的 `hardware/hand-jig/` 目录提供 `assembly.pdf`（带标注的装配图）、`assembly.step`（完整实体）与 `base.3mf`（可打印底座）。如果从零复现，以下是图纸上的关键数据：
+release 附件的 `hardware/hand1/` 目录提供 Wuji Hand 1 治具的 `assembly.pdf`（带标注的装配图）、`assembly.step`（完整实体）与 `base.3mf`（可打印底座）；`hardware/hand2/` 提供 Wuji Hand 2 的同类文件。如果从零复现 Wuji Hand 1 治具，以下是图纸上的关键数据：
 
 | 尺寸项 | 数值 |
 |---|---|

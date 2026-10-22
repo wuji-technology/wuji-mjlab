@@ -51,9 +51,9 @@ pixi run list-envs
 
 ## Tasks
 
-[v2026.9.27 release](https://github.com/wuji-technology/wuji-mjlab/releases/tag/v2026.9.27) · [Download asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip) — includes shared hand jigs, Reorient models and cube assets, plus PenSpin hardware, 40 motion clips, five recipes and five matched checkpoint sets.
+[v2026.10.22 release](https://github.com/wuji-technology/wuji-mjlab/releases/tag/v2026.10.22) · [Download asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip) — includes shared hand jigs, Reorient models and cube assets, plus PenSpin hardware, 40 motion clips, five recipes and five matched checkpoint sets.
 
-Paths below are relative to the extracted `wuji-mjlab-v2026.9.27-assets/` directory. Setup, training and deployment instructions are in this repository.
+Paths below are relative to the extracted `wuji-mjlab-v2026.10.22-assets/` directory. Setup, training and deployment instructions are in this repository.
 
 | Bundle path | Contents |
 |---|---|

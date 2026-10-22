@@ -16,7 +16,7 @@
 | `04_stable_grasp_rotation` | 稳定抓握旋转 |
 | `05_multi_axis_two_rotations` | 多轴两次旋转 |
 
-[v2026.9.27 合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip) 提供转笔硬件、轨迹数据及 5 组配套模型，位于包内 `pen_spin/checkpoints/<动作组>/`。将包内 `pen_spin/checkpoints/` 复制到仓库的 `src/wuji_mjlab/tasks/pen_spin/data/checkpoints/`，保留动作组目录及下方所有配套文件；下载数据集与训练步骤见 [训练](train_zh.md)。
+[v2026.10.22 合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip) 提供转笔硬件、轨迹数据及 5 组配套模型，位于包内 `pen_spin/checkpoints/<动作组>/`。将包内 `pen_spin/checkpoints/` 复制到仓库的 `src/wuji_mjlab/tasks/pen_spin/data/checkpoints/`，保留动作组目录及下方所有配套文件；下载数据集与训练步骤见 [训练](train_zh.md)。
 
 ```text
 src/wuji_mjlab/tasks/pen_spin/data/checkpoints/<group>/

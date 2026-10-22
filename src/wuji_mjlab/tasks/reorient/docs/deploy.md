@@ -10,8 +10,8 @@ Run all commands from the **repository root**. Hardware and printable resources 
 
 | Policy | Download | Bundle directory |
 |---|---|---|
-| Wuji Hand 1 · Reorient | [Asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip) | `reorient/checkpoints/hand1/` |
-| Wuji Hand 2 · Reorient | [Asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip) | `reorient/checkpoints/hand2/` |
+| Wuji Hand 1 · Reorient | [Asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip) | `reorient/checkpoints/hand1/` |
+| Wuji Hand 2 · Reorient | [Asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip) | `reorient/checkpoints/hand2/` |
 
 Standalone, **numpy + onnxruntime** runtime for the cube-reorient policy —
 no torch/mjlab import at deploy time. One deploy tree supports **both**
@@ -22,7 +22,7 @@ Wuji Hand generations via `--gen {1,2}`:
 | Driver | `wujihandpy` | `wuji_sdk` |
 | Hand side | right only | right only |
 
-Policy weights are distributed separately from the source repository in the asset bundle: [`wuji-mjlab` release `v2026.9.27`](https://github.com/wuji-technology/wuji-mjlab/releases/tag/v2026.9.27).
+Policy weights are distributed separately from the source repository in the asset bundle: [`wuji-mjlab` release `v2026.10.22`](https://github.com/wuji-technology/wuji-mjlab/releases/tag/v2026.10.22).
 
 **`--gen 1` needs the published gen1 policy — it is not committed here; see
 [Policies](#policies-not-tracked-in-git).**
@@ -75,11 +75,11 @@ One dependency has a host floor, and one is not on PyPI at all:
 The policy/hand scripts take `--gen {1,2}` (default 2)
 and `--hand right`. The camera observer (`vision`) is gen-agnostic (no `--gen`).
 
-Download and extract the [Asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip). Keep each generation's `policy.onnx` and `config.json` together in its own directory; do not mix generations. Skip the download if you already extracted the bundle during setup.
+Download and extract the [Asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip). Keep each generation's `policy.onnx` and `config.json` together in its own directory; do not mix generations. Skip the download if you already extracted the bundle during setup.
 
 ```bash
-gh release download v2026.9.27 --repo wuji-technology/wuji-mjlab --pattern 'wuji-mjlab-v2026.9.27-assets.zip'
-unzip wuji-mjlab-v2026.9.27-assets.zip
+gh release download v2026.10.22 --repo wuji-technology/wuji-mjlab --pattern 'wuji-mjlab-v2026.10.22-assets.zip'
+unzip wuji-mjlab-v2026.10.22-assets.zip
 ```
 
 ### 1. Start camera observations
@@ -96,10 +96,10 @@ pixi run -e reorient-deploy vision -- --cube path/to/cube_tags.json
 
 ```bash
 pixi run -e reorient-deploy play-real -- --gen 2 --hand right \
-  --ckpt wuji-mjlab-v2026.9.27-assets/reorient/checkpoints/hand2/policy.onnx
+  --ckpt wuji-mjlab-v2026.10.22-assets/reorient/checkpoints/hand2/policy.onnx
 # or, no hardware:
 pixi run -e reorient-deploy play-real -- --gen 2 --hand right --mock \
-  --ckpt wuji-mjlab-v2026.9.27-assets/reorient/checkpoints/hand2/policy.onnx
+  --ckpt wuji-mjlab-v2026.10.22-assets/reorient/checkpoints/hand2/policy.onnx
 
 ```
 
@@ -118,7 +118,7 @@ pixi run -e reorient-deploy home -- --gen 2 --hand right
 
 # preflight: deps, SDKs, policy IO, (optionally) hand connectivity
 # (--ckpt is required — it validates the exact ONNX you'll deploy)
-pixi run -e reorient-deploy check -- --gen 2 --hand right --ckpt wuji-mjlab-v2026.9.27-assets/reorient/checkpoints/hand2/policy.onnx
+pixi run -e reorient-deploy check -- --gen 2 --hand right --ckpt wuji-mjlab-v2026.10.22-assets/reorient/checkpoints/hand2/policy.onnx
 ```
 
 For gen1, `--connect` refuses to connect unless you explicitly add
@@ -153,7 +153,7 @@ The bundle includes the Wuji Hand 1 policy with identity metadata already embedd
 
 ```bash
 pixi run -e reorient-deploy play-real -- --gen 1 --hand right \
-    --ckpt wuji-mjlab-v2026.9.27-assets/reorient/checkpoints/hand1/policy.onnx
+    --ckpt wuji-mjlab-v2026.10.22-assets/reorient/checkpoints/hand1/policy.onnx
 ```
 
 For hardware assembly and calibration, see [Setup](setup.md). For the Wuji Hand 1 end-to-end checks, continue with the [smoke test below](#end-to-end-smoke-test-wuji-hand-1).
@@ -238,7 +238,7 @@ The bundled Wuji Hand 1 model already contains identity metadata. Run it with it
 
 ```bash
 pixi run -e reorient-deploy play-real -- --gen 1 --hand right \
-    --ckpt wuji-mjlab-v2026.9.27-assets/reorient/checkpoints/hand1/policy.onnx
+    --ckpt wuji-mjlab-v2026.10.22-assets/reorient/checkpoints/hand1/policy.onnx
 ```
 
 Expected: the ONNX policy loads and prints its sidecar config; the hand

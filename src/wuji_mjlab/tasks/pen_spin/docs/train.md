@@ -17,13 +17,13 @@ Task ID: `WujiHand2_PenSpin`.
 
 | Group ID | Motion | Dataset download |
 | --- | --- | --- |
-| `01_single_axis` | Single-axis rotation | [Asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip) |
-| `02_continuous_single_axis` | Continuous single-axis rotation | [Asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip) |
-| `03_continuous_multi_axis` | Continuous multi-axis rotation | [Asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip) |
-| `04_stable_grasp_rotation` | Stable grasp rotation | [Asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip) |
-| `05_multi_axis_two_rotations` | Multi-axis two rotations | [Asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip) |
+| `01_single_axis` | Single-axis rotation | [Asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip) |
+| `02_continuous_single_axis` | Continuous single-axis rotation | [Asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip) |
+| `03_continuous_multi_axis` | Continuous multi-axis rotation | [Asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip) |
+| `04_stable_grasp_rotation` | Stable grasp rotation | [Asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip) |
+| `05_multi_axis_two_rotations` | Multi-axis two rotations | [Asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip) |
 
-All 40 clips across five groups and their recipes are included in the [v2026.9.27 asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip). After extraction, copy `pen_spin/data/rawdata/clips/` and `pen_spin/data/recipe/` into the matching task directories below. Group clip counts are 10, 4, 9, 10 and 7 respectively. Existing local data can be used directly. Five matched checkpoint sets are also included under `pen_spin/checkpoints/`; see [Deploy](deploy.md) for placement.
+All 40 clips across five groups and their recipes are included in the [v2026.10.22 asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip). After extraction, copy `pen_spin/data/rawdata/clips/` and `pen_spin/data/recipe/` into the matching task directories below. Group clip counts are 10, 4, 9, 10 and 7 respectively. Existing local data can be used directly. Five matched checkpoint sets are also included under `pen_spin/checkpoints/`; see [Deploy](deploy.md) for placement.
 
 ```text
 src/wuji_mjlab/tasks/pen_spin/data/

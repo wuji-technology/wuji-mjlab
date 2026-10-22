@@ -51,9 +51,9 @@ pixi run list-envs
 
 ## 任务
 
-[v2026.9.27 发布页](https://github.com/wuji-technology/wuji-mjlab/releases/tag/v2026.9.27) · [下载合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip)（含共享工装、Wuji Hand 1 和 Wuji Hand 2 转方块模型与方块文件，以及转笔硬件、40 段轨迹、5 份 recipe 和 5 组配套模型）。
+[v2026.10.22 发布页](https://github.com/wuji-technology/wuji-mjlab/releases/tag/v2026.10.22) · [下载合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip)（含共享工装、Wuji Hand 1 和 Wuji Hand 2 转方块模型与方块文件，以及转笔硬件、40 段轨迹、5 份 recipe 和 5 组配套模型）。
 
-下表路径均相对于解压后的 `wuji-mjlab-v2026.9.27-assets/` 目录。硬件搭建、训练与部署说明统一放在本仓库。
+下表路径均相对于解压后的 `wuji-mjlab-v2026.10.22-assets/` 目录。硬件搭建、训练与部署说明统一放在本仓库。
 
 | 资源包路径 | 内容 |
 |---|---|

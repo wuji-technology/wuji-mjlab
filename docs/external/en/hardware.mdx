@@ -111,7 +111,7 @@ pixi run -e reorient-deploy python -c "import cv2, pupil_apriltags, zmq, wujihan
 
 ## Cube Fabrication
 
-The fastest path reproduces the reference cube from the release-bundled assets. Download the release zip (see [Introduction](../introduction) for the `gh` command), which produces a `release-assets/` directory containing `hardware/cube/` with the `.3mf`, `.step`, `.obj`, and `.png` files. The cube is a 54 mm edge solid with 4 × 13 mm ArUco tags per face (24 tags total, IDs 0–23). Real performance depends on dimensions matching `cube_tags.json` to within ~0.5 mm.
+The fastest path reproduces the reference cube from the release-bundled assets. Download the release zip (see [Introduction](../introduction) for the `gh` command), which produces a `release-assets/` directory containing `reorient/hardware/` with the `.3mf`, `.step`, `.obj`, and `.png` files. The cube is a 54 mm edge solid with 4 × 13 mm ArUco tags per face (24 tags total, IDs 0–23). Real performance depends on dimensions matching `cube_tags.json` to within ~0.5 mm.
 
 To verify the 24-tag layout in 3D before printing:
 
@@ -121,7 +121,7 @@ pixi run python deploy/reorient/tools/view_release_cube.py
 
 ### 3D-Printing the Cube
 
-Use the shipped Bambu Lab `.3mf` at `release-assets/hardware/cube/cube.3mf`. It contains the cube geometry plus the dual-material assignments that print the 24 ArUco tag patterns directly into the faces — no stickers, no glue, no alignment fuss.
+Use the shipped Bambu Lab `.3mf` at `release-assets/reorient/hardware/cube.3mf`. It contains the cube geometry plus the dual-material assignments that print the 24 ArUco tag patterns directly into the faces — no stickers, no glue, no alignment fuss.
 
 1. Open the file in Bambu Studio, or drag it onto a connected Bambu printer.
 2. Load two filaments, one black and one white (PLA is fine). The slicer prompts for slot assignment. The `.3mf` declares which logical slot is tag versus base — confirm the physical filaments match.
@@ -201,7 +201,7 @@ The Wuji Hand sits on a 3D-printed jig bolted to an aluminum honeycomb breadboar
 
 ![Hand on jig, side view](./images/hand-jig-side.jpg)
 
-The release attachment's `hardware/hand-jig/` directory ships `assembly.pdf` (the dimensioned drawing), `assembly.step` (the full solid), and `base.3mf` (the printable base). If you reproduce from scratch, these are the key numbers off the drawing:
+The release attachment's `hardware/hand1/` directory ships the Wuji Hand 1 jig as `assembly.pdf` (the dimensioned drawing), `assembly.step` (the full solid), and `base.3mf` (the printable base); `hardware/hand2/` holds the same set for Wuji Hand 2. If you reproduce the Wuji Hand 1 jig from scratch, these are the key numbers off the drawing:
 
 | Dimension | Value |
 |---|---|

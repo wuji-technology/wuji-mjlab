@@ -10,8 +10,8 @@
 
 | 策略 | 下载链接 | 包内位置 |
 |---|---|---|
-| Wuji Hand 1 · Reorient | [合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip) | `reorient/checkpoints/hand1/` |
-| Wuji Hand 2 · Reorient | [合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip) | `reorient/checkpoints/hand2/` |
+| Wuji Hand 1 · Reorient | [合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip) | `reorient/checkpoints/hand1/` |
+| Wuji Hand 2 · Reorient | [合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip) | `reorient/checkpoints/hand2/` |
 
 独立的 **numpy + onnxruntime** 运行时，用于方块翻转策略——
 部署时不导入 torch/mjlab。同一份部署目录树通过 `--gen {1,2}`
@@ -22,7 +22,7 @@
 | 驱动 | `wujihandpy` | `wuji_sdk` |
 | 手别 | 仅右手 | 仅右手 |
 
-策略权重与源码分开提供，资源包入口： [`wuji-mjlab` release `v2026.9.27`](https://github.com/wuji-technology/wuji-mjlab/releases/tag/v2026.9.27)。
+策略权重与源码分开提供，资源包入口： [`wuji-mjlab` release `v2026.10.22`](https://github.com/wuji-technology/wuji-mjlab/releases/tag/v2026.10.22)。
 
 **跑 `--gen 1` 需要已发布的 gen1 策略——它未随本仓提交，见下文「策略」一节。**
 
@@ -73,11 +73,11 @@ pixi install -e reorient-deploy
 策略/手部脚本接收 `--gen {1,2}`（默认 2）
 和 `--hand right`。相机观测程序（`vision`）与代际无关（无 `--gen`）。
 
-先下载并解压[合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip)。每代手使用各自目录中的 `policy.onnx` 与 `config.json`，保持两者在同一目录；不要混用。已按硬件搭建文档解压时可跳过下载。
+先下载并解压[合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip)。每代手使用各自目录中的 `policy.onnx` 与 `config.json`，保持两者在同一目录；不要混用。已按硬件搭建文档解压时可跳过下载。
 
 ```bash
-gh release download v2026.9.27 --repo wuji-technology/wuji-mjlab --pattern 'wuji-mjlab-v2026.9.27-assets.zip'
-unzip wuji-mjlab-v2026.9.27-assets.zip
+gh release download v2026.10.22 --repo wuji-technology/wuji-mjlab --pattern 'wuji-mjlab-v2026.10.22-assets.zip'
+unzip wuji-mjlab-v2026.10.22-assets.zip
 ```
 
 ### 1. 启动相机观测
@@ -94,10 +94,10 @@ pixi run -e reorient-deploy vision -- --cube path/to/cube_tags.json
 
 ```bash
 pixi run -e reorient-deploy play-real -- --gen 2 --hand right \
-  --ckpt wuji-mjlab-v2026.9.27-assets/reorient/checkpoints/hand2/policy.onnx
+  --ckpt wuji-mjlab-v2026.10.22-assets/reorient/checkpoints/hand2/policy.onnx
 # 或者，无硬件：
 pixi run -e reorient-deploy play-real -- --gen 2 --hand right --mock \
-  --ckpt wuji-mjlab-v2026.9.27-assets/reorient/checkpoints/hand2/policy.onnx
+  --ckpt wuji-mjlab-v2026.10.22-assets/reorient/checkpoints/hand2/policy.onnx
 
 ```
 
@@ -116,7 +116,7 @@ pixi run -e reorient-deploy home -- --gen 2 --hand right
 
 # 预检：依赖、SDK、策略 IO、（可选）手部连通性
 # （--ckpt 必填——它校验你即将部署的那个 ONNX）
-pixi run -e reorient-deploy check -- --gen 2 --hand right --ckpt wuji-mjlab-v2026.9.27-assets/reorient/checkpoints/hand2/policy.onnx
+pixi run -e reorient-deploy check -- --gen 2 --hand right --ckpt wuji-mjlab-v2026.10.22-assets/reorient/checkpoints/hand2/policy.onnx
 ```
 
 Wuji Hand 1 使用 `--connect` 时，除非显式加上 `--allow-energize`，否则会拒绝连接；
@@ -147,7 +147,7 @@ pixi run -e reorient-deploy play-real -- --gen 2 --hand right \
 
 ```bash
 pixi run -e reorient-deploy play-real -- --gen 1 --hand right \
-    --ckpt wuji-mjlab-v2026.9.27-assets/reorient/checkpoints/hand1/policy.onnx
+    --ckpt wuji-mjlab-v2026.10.22-assets/reorient/checkpoints/hand1/policy.onnx
 ```
 
 硬件安装与标定见[硬件搭建](setup_zh.md)；Wuji Hand 1 端到端检查见下文[Wuji Hand 1 端到端验证](#wuji-hand-1-端到端验证)。
@@ -213,7 +213,7 @@ pixi run -e reorient-deploy python deploy/reorient/scripts/render_viewer.py --ge
 
 ```bash
 pixi run -e reorient-deploy play-real -- --gen 1 --hand right \
-    --ckpt wuji-mjlab-v2026.9.27-assets/reorient/checkpoints/hand1/policy.onnx
+    --ckpt wuji-mjlab-v2026.10.22-assets/reorient/checkpoints/hand1/policy.onnx
 ```
 
 程序加载 ONNX 策略，打印配套配置，并通过 `driver.home()` 让手回到初始姿态。连接真机且未使用 `--mock` 时，在提示处按回车后才开始策略控制。

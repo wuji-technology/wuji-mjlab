@@ -6,9 +6,9 @@
 
 | Resource | Download | Bundle directory |
 |---|---|---|
-| Cube models, print files and textures | [Asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip) | `reorient/hardware/` |
-| Wuji Hand 1 mounting jig | [Asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip) | `hardware/hand1/` |
-| Wuji Hand 2 mounting jig | [Asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip) | `hardware/hand2/` |
+| Cube models, print files and textures | [Asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip) | `reorient/hardware/` |
+| Wuji Hand 1 mounting jig | [Asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip) | `hardware/hand1/` |
+| Wuji Hand 2 mounting jig | [Asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip) | `hardware/hand2/` |
 
 The existing hardware walkthrough describes the Wuji Hand 1 reference rig. Checkpoint Release links are maintained in [Deploy](deploy.md).
 
@@ -200,9 +200,9 @@ release-bundled assets. Download the release zip:
 
 ```bash
 # Requires the GitHub CLI (https://cli.github.com) and unzip.
-# Run once in a directory without an existing wuji-mjlab-v2026.9.27-assets folder.
-gh release download v2026.9.27 --repo wuji-technology/wuji-mjlab --pattern 'wuji-mjlab-v2026.9.27-assets.zip'
-unzip wuji-mjlab-v2026.9.27-assets.zip
+# Run once in a directory without an existing wuji-mjlab-v2026.10.22-assets folder.
+gh release download v2026.10.22 --repo wuji-technology/wuji-mjlab --pattern 'wuji-mjlab-v2026.10.22-assets.zip'
+unzip wuji-mjlab-v2026.10.22-assets.zip
 ```
 
 The cube bundle is
@@ -214,18 +214,18 @@ Before printing, inspect the bundled cube mesh and its 24-tag layout:
 
 ```bash
 pixi run -e reorient-deploy python deploy/reorient/tools/view_release_cube.py \
-  --cube wuji-mjlab-v2026.9.27-assets/reorient/hardware/cube.obj
+  --cube wuji-mjlab-v2026.10.22-assets/reorient/hardware/cube.obj
 ```
 
 > Without the `gh` CLI, browse to the
-> [v2026.9.27 release page](https://github.com/wuji-technology/wuji-mjlab/releases/tag/v2026.9.27),
-> download the `wuji-mjlab-v2026.9.27-assets.zip` attachment manually, then run
+> [v2026.10.22 release page](https://github.com/wuji-technology/wuji-mjlab/releases/tag/v2026.10.22),
+> download the `wuji-mjlab-v2026.10.22-assets.zip` attachment manually, then run
 > the same `unzip` command from this directory.
 
 ### 3.1 3D-printing the cube
 
 **Use the shipped Bambu Lab `.3mf`** (in the release attachment
-at `wuji-mjlab-v2026.9.27-assets/reorient/hardware/cube.3mf`) — it contains the cube
+at `wuji-mjlab-v2026.10.22-assets/reorient/hardware/cube.3mf`) — it contains the cube
 geometry plus the dual-material assignments that print the 24 ArUco
 4×4 tag patterns directly into the faces. No stickers, no glue, no
 alignment fuss.
