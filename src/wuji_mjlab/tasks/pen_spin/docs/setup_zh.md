@@ -6,7 +6,7 @@
 
 | 资源 | 获取位置 |
 | --- | --- |
-| 两种笔身、端部与完整装配 STEP | [合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip) · `pen_spin/hardware/` |
+| 两种笔身、端部与完整装配 STEP | [合并资源包](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip) · `pen_spin/hardware/` |
 | 打印工程与装配 CAD | `pen_spin/hardware/` 下的 `pen_heads.3mf`、`pen_shafts.3mf`、`pen_assembly.step` |
 | Wuji Hand 2 共享工装 | 同一资源包的 `hardware/hand2/` |
 | 笔标签配置 | [pen_tags.json](../../../../../deploy/pen_spin/config/pen_tags.json) |
@@ -57,7 +57,7 @@ pixi install -e pen-spin-deploy
 
 上述环纹/交叉纹 STEP 文件名中的 250 mm 指整笔装配长度。同一目录还提供 `pen_heads.3mf`、`pen_shafts.3mf` 和 `pen_assembly.step`，打印几何以对应 3MF 为准。
 
-打印工程配置为 Bambu Lab X2D、0.4 mm 喷嘴、Bambu PLA Basic、0.2 mm 层高、2 层墙、15% 网格填充，自动支撑未启用。耗材槽为白色和黑色，图案使用第二个耗材槽。笔头工程包含 1 个“长方柱1”和 3 个“长方柱2”；每支笔使用两种笔头各一个，打印前调整数量，并选择一种笔杆。
+打印工程配置为 Bambu Lab X2D、0.4 mm 喷嘴、Bambu PLA Basic、0.2 mm 层高、2 层墙、15% 网格填充，自动支撑未启用。`pen_heads.3mf` 中本体使用第一耗材槽（白色），标签图案使用第二耗材槽（黑色），通过双色打印直接在笔头上成型，无需贴纸。笔头工程包含 1 个“长方柱1”和 3 个“长方柱2”；每支笔使用两种笔头各一个，打印前调整数量，并选择一种笔杆。
 
 ### 标签图案与布局
 
@@ -65,7 +65,7 @@ pixi install -e pen-spin-deploy
 
 [`pen_tags.json`](../../../../../deploy/pen_spin/config/pen_tags.json) 包含图案定义、标签角点和三维位置；[贴图目录](../../../assets/objects/aruco_pen250/textures/)包含 10 张图案贴图和 1 张空白贴图。资源包的标签素材位于 `pen_spin/hardware/tags/`：`textures/` 保留 10 张图案贴图，`texture_faces.csv` 记录各面的打印尺寸，`pen_tags.json` 提供标签位置。
 
-原 PNG 为方形纹理，长侧面实际为 18 × 36 mm 或 36 × 18 mm，不能把每张 PNG 都直接打印成正方形。粘贴时保持各面图案、朝向和尺寸与配置一致。各面尺寸见 `pen_spin/hardware/tags/texture_faces.csv`，标签位置见同目录的 `pen_tags.json`。
+`pen_spin/hardware/tags/texture_faces.csv` 与 `textures/` 仅在单色打印、需要贴标签时使用；按 `pen_heads.3mf` 双色打印时不需要它们。采用贴纸备选方案时，原 PNG 为方形纹理，但长侧面实际为 18 × 36 mm 或 36 × 18 mm，不能把每张 PNG 都直接打印成正方形。粘贴时保持各面图案、朝向和尺寸与配置一致；各面尺寸见 `texture_faces.csv`，标签位置见 `pen_tags.json`。
 
 ## 4. 腕部标签与安装方向
 

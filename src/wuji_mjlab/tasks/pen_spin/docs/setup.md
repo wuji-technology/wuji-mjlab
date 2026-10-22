@@ -6,7 +6,7 @@
 
 | Resource | Location |
 | --- | --- |
-| Two pen bodies, end blocks and complete STEP assemblies | [Asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.9.27/wuji-mjlab-v2026.9.27-assets.zip) · `pen_spin/hardware/` |
+| Two pen bodies, end blocks and complete STEP assemblies | [Asset bundle](https://github.com/wuji-technology/wuji-mjlab/releases/download/v2026.10.22/wuji-mjlab-v2026.10.22-assets.zip) · `pen_spin/hardware/` |
 | Print projects and assembly CAD | `pen_spin/hardware/pen_heads.3mf`, `pen_shafts.3mf` and `pen_assembly.step` |
 | Shared Wuji Hand 2 mounting jig | `hardware/hand2/` in the same bundle |
 | Pen tag configuration | [pen_tags.json](../../../../../deploy/pen_spin/config/pen_tags.json) |
@@ -57,7 +57,7 @@ Files under `pen_spin/hardware/` in the bundle:
 
 The `250mm` filename suffix refers to assembled length for the ring/cross STEP exports listed above. The same directory includes `pen_heads.3mf`, `pen_shafts.3mf` and `pen_assembly.step`. Use the corresponding 3MF for print geometry.
 
-The print projects use Bambu Lab X2D profiles with a 0.4 mm nozzle, Bambu PLA Basic, 0.2 mm layers, 2 wall loops, 15% grid infill and automatic supports disabled. The filament slots are white and black; artwork uses the second slot. The head project contains one “长方柱1” and three “长方柱2” objects. Each pen uses one of each head type; adjust quantities before printing and choose one shaft variant.
+The print projects use Bambu Lab X2D profiles with a 0.4 mm nozzle, Bambu PLA Basic, 0.2 mm layers, 2 wall loops, 15% grid infill and automatic supports disabled. In `pen_heads.3mf`, the body uses the first filament slot (white), and the tag patterns use the second slot (black): two-color printing forms the patterns directly on the pen heads, with no stickers needed. The head project contains one “长方柱1” and three “长方柱2” objects. Each pen uses one of each head type; adjust quantities before printing and choose one shaft variant.
 
 ### Tag patterns and placement
 
@@ -65,7 +65,7 @@ The pen uses the custom **`SOURCE_1X2_18`** dictionary with 18 patterns. Its IDs
 
 [`pen_tags.json`](../../../../../deploy/pen_spin/config/pen_tags.json) includes the pattern definitions, corners and 3D positions. The [texture directory](../../../assets/objects/aruco_pen250/textures/) contains ten patterned images and one blank image. The bundle stores tag assets under `pen_spin/hardware/tags/`: ten patterned images in `textures/`, face dimensions in `texture_faces.csv`, and marker positions in `pen_tags.json`.
 
-The source PNGs are square textures; long side faces are physically 18 × 36 mm or 36 × 18 mm. Do not print every image as a square. Match each face's pattern, orientation and dimensions to the configuration. Use `pen_spin/hardware/tags/texture_faces.csv` for each face’s dimensions and `pen_tags.json` for marker positions.
+Use `pen_spin/hardware/tags/texture_faces.csv` and `textures/` only for single-color printing when stickers are needed; they are not needed for the two-color `pen_heads.3mf` print. For this sticker fallback, the source PNGs are square textures, but long side faces are physically 18 × 36 mm or 36 × 18 mm. Do not print every image as a square. Match each face's pattern, orientation and dimensions to `texture_faces.csv`, using `pen_tags.json` for marker positions.
 
 ## 4. Wrist tag and mounting orientation
 
