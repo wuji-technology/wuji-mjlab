@@ -146,7 +146,7 @@ holds both — e.g. a training run's log dir:
 
 ```bash
 pixi run -e reorient-deploy play-real -- --gen 2 --hand right \
-    --ckpt "logs/rsl_rl/wuji_reorient_hand2/<run>/policy_hand2_right.onnx"
+    --ckpt "logs/rsl_rl/wuji_reorient_hand2/<run>/policy.onnx"
 ```
 
 The bundle includes the Wuji Hand 1 policy with identity metadata already embedded; no stamping step is required. Keep the camera observer running and select the Wuji Hand 1 model:

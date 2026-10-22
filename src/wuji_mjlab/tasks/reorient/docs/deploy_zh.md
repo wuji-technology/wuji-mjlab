@@ -140,7 +140,7 @@ ema_alpha、...）都**不纳入追踪**（整个仓库范围内被 gitignore）
 
 ```bash
 pixi run -e reorient-deploy play-real -- --gen 2 --hand right \
-    --ckpt "logs/rsl_rl/wuji_reorient_hand2/<run>/policy_hand2_right.onnx"
+    --ckpt "logs/rsl_rl/wuji_reorient_hand2/<run>/policy.onnx"
 ```
 
 合并资源包已包含 Wuji Hand 1 模型及身份元数据，无需再次写入身份。保持相机观测运行，选择 Wuji Hand 1 模型：
