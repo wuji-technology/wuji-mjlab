@@ -33,10 +33,16 @@ def _compute_cage_bounds_in_palm(
   margin: float,
   up_margin: float = _CAGE_UP_MARGIN,
   up_axis: int = _DEFAULT_CAGE_UP_AXIS,
+  up_sign: int = 1,
 ) -> tuple[torch.Tensor, torch.Tensor]:
   lo = hand_in_palm.min(dim=1).values - margin
   hi = hand_in_palm.max(dim=1).values + margin
-  hi[:, up_axis] = hand_in_palm[:, :, up_axis].max(dim=1).values + up_margin
+  if up_sign == 1:
+    hi[:, up_axis] = hand_in_palm[:, :, up_axis].max(dim=1).values + up_margin
+  elif up_sign == -1:
+    lo[:, up_axis] = hand_in_palm[:, :, up_axis].min(dim=1).values - up_margin
+  else:
+    raise ValueError("up_sign must be 1 or -1")
   return lo, hi
 
 
@@ -46,9 +52,10 @@ def _compute_cage_aabb_escape_in_palm(
   margin: float,
   up_margin: float = _CAGE_UP_MARGIN,
   up_axis: int = _DEFAULT_CAGE_UP_AXIS,
+  up_sign: int = 1,
 ) -> torch.Tensor:
   lo, hi = _compute_cage_bounds_in_palm(
-    hand_in_palm, margin=margin, up_margin=up_margin, up_axis=up_axis
+    hand_in_palm, margin=margin, up_margin=up_margin, up_axis=up_axis, up_sign=up_sign
   )
   return (torch.relu(lo - cube_in_palm) + torch.relu(cube_in_palm - hi)).sum(dim=-1)
 
@@ -59,6 +66,7 @@ def _compute_cage_escape_dist(
   robot_cfg: SceneEntityCfg,
   margin: float,
   up_axis: int,
+  up_sign: int = 1,
 ) -> torch.Tensor:
   obj: Entity = env.scene[object_cfg.name]
   robot: Entity = env.scene[robot_cfg.name]
@@ -83,6 +91,7 @@ def _compute_cage_escape_dist(
     margin=margin,
     up_margin=_CAGE_UP_MARGIN,
     up_axis=up_axis,
+    up_sign=up_sign,
   )
 
 
@@ -128,6 +137,7 @@ class CageEscapePenalty(ManagerTermBase):
     self._robot_cfg: SceneEntityCfg = params.get("robot_cfg", _DEFAULT_ROBOT_CFG)
     self._margin: float = params.get("margin", 0.01)
     self._up_axis: int = params.get("up_axis", _DEFAULT_CAGE_UP_AXIS)
+    self._up_sign: int = params.get("up_sign", 1)
     self._max_outside_steps: int = params.get("max_outside_steps", 10)
     self._drop_scale: float = params.get("drop_scale", 4.0)
     self._counter_decay_rate: float = params.get("counter_decay_rate", 0.5)
@@ -155,6 +165,7 @@ class CageEscapePenalty(ManagerTermBase):
     drop_scale: float | None = None,
     counter_decay_rate: float | None = None,
     max_count: float | None = None,
+    up_sign: int | None = None,
   ) -> torch.Tensor:
     object_cfg = self._object_cfg if object_cfg is None else object_cfg
     robot_cfg = self._robot_cfg if robot_cfg is None else robot_cfg
@@ -169,7 +180,10 @@ class CageEscapePenalty(ManagerTermBase):
     )
     max_count = self._max_count if max_count is None else max_count
 
-    escape_dist = _compute_cage_escape_dist(env, object_cfg, robot_cfg, margin, up_axis)
+    up_sign = self._up_sign if up_sign is None else up_sign
+    escape_dist = _compute_cage_escape_dist(
+      env, object_cfg, robot_cfg, margin, up_axis, up_sign
+    )
     outside = escape_dist > 0
 
     self._penalty_counter = update_cage_penalty_counter(
@@ -208,6 +222,7 @@ class CageEscapePenalty(ManagerTermBase):
       margin=self._margin,
       up_margin=_CAGE_UP_MARGIN,
       up_axis=self._up_axis,
+      up_sign=self._up_sign,
     )
     escape = _compute_cage_aabb_escape_in_palm(
       cube_in_palm,
@@ -215,6 +230,7 @@ class CageEscapePenalty(ManagerTermBase):
       margin=self._margin,
       up_margin=_CAGE_UP_MARGIN,
       up_axis=self._up_axis,
+      up_sign=self._up_sign,
     )
 
     palm_rot = matrix_from_quat(palm_quat)

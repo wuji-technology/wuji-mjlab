@@ -10,6 +10,7 @@ import sys
 import mjlab
 import tyro
 import wuji_mjlab.tasks  # noqa: F401
+import wuji_mjlab.utils.left_hand_playback as left_hand_playback
 from mjlab.scripts.play import PlayConfig
 from mjlab.tasks.registry import list_tasks
 from wuji_mjlab.utils.cli_override_utils import (
@@ -22,14 +23,30 @@ from wuji_mjlab.utils.task_cfg_utils import prepare_task_cfgs
 from wuji_mjlab.utils.train_config_utils import load_train_config
 
 
-def run_play_entry(task_id: str, cfg: PlayConfig, overrides: list[str]) -> None:
+def run_play_entry(
+  task_id: str,
+  cfg: PlayConfig,
+  overrides: list[str],
+  hand_side: str = "right",
+  mirror_policy_observations: bool = True,
+) -> None:
   env_cfg, agent_cfg = prepare_task_cfgs(task_id, overrides, play=True)
+  if hand_side == "left":
+    env_cfg = left_hand_playback.configure_left_hand_playback(
+      env_cfg, task_id, mirror_policy_observations=mirror_policy_observations
+    )
   run_play_with_cfg(task_id, cfg, env_cfg, agent_cfg)
 
 
 def main() -> None:
   parser = argparse.ArgumentParser(add_help=False)
   parser.add_argument("--task", type=str, default=None)
+  parser.add_argument("--hand", choices=("right", "left"), default="right")
+  parser.add_argument(
+    "--no-left-policy-adapter",
+    action="store_true",
+    help="Use native left-hand observations as a direct-transfer control.",
+  )
   parser.add_argument(
     "--config",
     type=str,
@@ -38,6 +55,8 @@ def main() -> None:
     "(schema: wuji_mjlab.utils.train_config_utils). Prefer --task.",
   )
   known, remaining = parser.parse_known_args()
+  if known.no_left_policy_adapter and known.hand != "left":
+    parser.error("--no-left-policy-adapter requires --hand left")
 
   config_task: str | None = None
   if known.config is not None:
@@ -59,7 +78,7 @@ def main() -> None:
     config=mjlab.TYRO_FLAGS,
   )
 
-  run_play_entry(task_id, cfg, overrides)
+  run_play_entry(task_id, cfg, overrides, known.hand, not known.no_left_policy_adapter)
 
 
 if __name__ == "__main__":

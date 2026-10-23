@@ -68,6 +68,10 @@ Paths below are relative to the extracted `wuji-mjlab-v2026.10.22-assets/` direc
 | [Cube Reorient](src/wuji_mjlab/tasks/reorient/README.md) | Wuji Hand 1 / Wuji Hand 2 · right | [Setup](src/wuji_mjlab/tasks/reorient/docs/setup.md) | [Train](src/wuji_mjlab/tasks/reorient/docs/train.md) | [Deploy](src/wuji_mjlab/tasks/reorient/docs/deploy.md) |
 | [PenSpin](src/wuji_mjlab/tasks/pen_spin/README.md) | Wuji Hand 2 · right | [Setup](src/wuji_mjlab/tasks/pen_spin/docs/setup.md) | [Train](src/wuji_mjlab/tasks/pen_spin/docs/train.md) | [Deploy](src/wuji_mjlab/tasks/pen_spin/docs/deploy.md) |
 
+For experimental simulation transfer, [run the right-hand checkpoints on the
+left Hand 2](docs/left_hand_playback.md). The playback adapter mirrors coordinate
+observations without changing the policy weights.
+
 ## Contributors
 
 - [Jielin Wu](https://github.com/AIRJASON50)
