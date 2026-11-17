@@ -162,18 +162,13 @@ def main() -> None:
   )
   p.add_argument("--servo-hz", type=float, default=None)
   p.add_argument("--effort-limit", type=float, default=None)
-  p.add_argument("--kp", type=float, default=None)
-  p.add_argument("--kd", type=float, default=None)
   p.add_argument("--pd-scale", type=float, default=None,
                  help="scale training-time per-joint kp; kd follows sqrt(scale) "
-                      "to preserve damping ratio (ignored when --kp or --kd is set; "
-                      "default comes from config pd_scale)")
+                      "to preserve damping ratio (default comes from config pd_scale)")
   p.add_argument("--kp-scale", type=float, default=None,
-                 help="override --pd-scale for training-time per-joint kp "
-                      "(ignored when --kp or --kd is set)")
+                 help="override --pd-scale for training-time per-joint kp")
   p.add_argument("--kd-scale", type=float, default=None,
-                 help="override --pd-scale for training-time per-joint kd "
-                      "(ignored when --kp or --kd is set)")
+                 help="override --pd-scale for training-time per-joint kd")
   p.add_argument("--ema-alpha", type=float, default=None,
                  help="action smoothing (lower = slower/smoother; trained value 0.5)")
   p.add_argument("--action-scale", type=float, default=None,
@@ -210,15 +205,11 @@ def main() -> None:
   sn = args.sn or config_loader.serial_number(args.hand) or None
 
   const = load_constants(args.gen, args.hand)
-  if args.kp is not None or args.kd is not None:
-    kp = pick(args.kp, ctl, "kp", 20.0)
-    kd = pick(args.kd, ctl, "kd", 0.1)
-  else:
-    pd_scale = args.pd_scale if args.pd_scale is not None else float(ctl.get("pd_scale", 2.0))
-    kp_scale = args.kp_scale if args.kp_scale is not None else pd_scale
-    kd_scale = args.kd_scale if args.kd_scale is not None else pd_scale ** 0.5
-    kp = const.sim_kp * kp_scale
-    kd = const.sim_kd * kd_scale
+  pd_scale = args.pd_scale if args.pd_scale is not None else float(ctl.get("pd_scale", 2.0))
+  kp_scale = args.kp_scale if args.kp_scale is not None else pd_scale
+  kd_scale = args.kd_scale if args.kd_scale is not None else pd_scale ** 0.5
+  kp = const.sim_kp * kp_scale
+  kd = const.sim_kd * kd_scale
   ckpt = args.ckpt or str(_POLICY_DIR / f"policy_hand{args.gen}_{args.hand}.onnx")
   policy = ONNXPolicy(ckpt, const)
   cfg = policy.config
@@ -266,8 +257,7 @@ def main() -> None:
       )
 
     mode = "MOCK (no hardware)" if args.mock else f"REAL sn={sn or 'auto-connect'}"
-    kp_repr = (f"per-joint[{kp.min():.3f}-{kp.max():.3f}] kp_scale={kp_scale} kd_scale={kd_scale}"
-               if isinstance(kp, np.ndarray) else f"{kp}")
+    kp_repr = f"per-joint[{kp.min():.3f}-{kp.max():.3f}] kp_scale={kp_scale} kd_scale={kd_scale}"
     displayed_effort_limit = 0.5 if effort_limit is None else effort_limit
     print(f"[run_policy] gen={args.gen} hand={args.hand} ckpt={Path(ckpt).name} ctrl_dt={ctrl_dt} "
           f"driver={mode} kp={kp_repr} effort={displayed_effort_limit}A goal_rest={goal_rest}s")

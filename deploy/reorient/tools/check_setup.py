@@ -60,52 +60,6 @@ def _check_policy(ckpt: str, gen: int, hand: str) -> Check:
                  "obs/action contract mismatch — re-export from this branch")
 
 
-def _check_connect(
-  gen: int, hand: str, sn: str | None, *, allow_energize: bool = False
-) -> Check:
-  if gen == 1 and not allow_energize:
-    return Check(
-      f"hand connect ({hand})", False,
-      "refusing to connect: generation 1 driver energizes motors", True,
-      "pass --allow-energize to confirm motor power before connecting")
-  if gen == 1:
-    print("WARNING: generation 1 connection will energize motors", file=sys.stderr,
-          flush=True)
-  try:
-    from wuji_reorient_deploy.constants import load_constants
-    from wuji_reorient_deploy.drivers import make_driver
-    const = load_constants(gen, hand)
-    drv = make_driver(
-      gen, hand, sn, mock=False, constants=const, energize=gen == 1
-    )
-    try:
-      q = drv.read_encoders()
-      fault = drv.fault()
-      missing_feedback = getattr(drv, "missing_feedback", None)
-      missing = missing_feedback() if missing_feedback is not None else ()
-      energized = getattr(drv, "energized", True)
-      ok = q.shape == (const.num_joints,) and fault is None and not missing
-      detail = (
-        f"{const.num_joints - len(missing)}/{const.num_joints} joints reporting fresh "
-        f"feedback, fault={fault or 'none'}"
-        + (f", MISSING: {', '.join(missing)}" if missing else "")
-        + (
-          "; ⚠ motors WERE energized — this driver has no read-only "
-          "connect mode"
-          if energized
-          else "; motors NOT energized (read-only connect)"
-        )
-      )
-      mode = "energized" if energized else "read-only"
-      return Check(f"hand connect ({mode}, {hand})", ok, detail, True,
-                   "" if ok else "hand reports a fault, missing feedback, or wrong joint count")
-    finally:
-      drv.close()
-  except Exception as e:  # noqa: BLE001
-    return Check(f"hand connect ({hand})", False, f"{type(e).__name__}: {e}",
-                 True, "check hand is powered, on the bus, and --sn is correct")
-
-
 def main() -> None:
   ap = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -115,11 +69,6 @@ def main() -> None:
   ap.add_argument("--ckpt", required=True,
                   help="path to the ONNX policy to validate (no default location; "
                        "its config sidecar must sit beside it)")
-  ap.add_argument("--sn", default=None, help="hand serial (default: auto-connect)")
-  ap.add_argument("--connect", action="store_true",
-                  help="connect and read encoders (gen2 read-only; gen1 requires --allow-energize)")
-  ap.add_argument("--allow-energize", action="store_true",
-                  help="explicitly permit gen1 --connect to energize motors")
   ap.add_argument("--need-camera", action="store_true",
                   help="treat a missing MVS camera SDK as a failure")
   args = ap.parse_args()
@@ -134,17 +83,13 @@ def main() -> None:
     _dep("yaml", True, "pixi install -e reorient-deploy (pyyaml)"),
     _dep("scipy", True),
     _check_policy(args.ckpt, args.gen, args.hand),
-    _dep(driver_sdk, args.connect,
+    _dep(driver_sdk, False,
          "driver SDK for this --gen; `pixi install -e reorient-deploy` on a "
-         "glibc>=2.34 host installs it (not needed for --mock)"),
+         "glibc>=2.34 host installs it (not needed for offline checks)"),
     _check_mvs() if not args.need_camera else _need(_check_mvs()),
   ]
-  if args.connect:
-    checks.append(_check_connect(args.gen, args.hand, args.sn,
-                                 allow_energize=args.allow_energize))
-
   print(f"\nWuji Hand deploy preflight  (gen={args.gen}, hand={args.hand}, "
-        f"mode={'real' if args.connect else 'offline/mock'})\n")
+        "mode=offline)\n")
   width = max(len(c.name) for c in checks)
   failed_required = 0
   for c in checks:
@@ -165,8 +110,7 @@ def main() -> None:
     print(f"{RED}✗ {failed_required} required check(s) failed — not ready to "
           f"run.{RESET}\n")
     sys.exit(1)
-  note = "" if args.connect else "  (run with --connect to test real hardware)"
-  print(f"{GREEN}✓ ready to run{RESET}{note}\n")
+  print(f"{GREEN}✓ ready to run{RESET}\n")
 
 
 def _need(c: Check) -> Check:
