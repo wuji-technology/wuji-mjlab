@@ -80,6 +80,7 @@ class SingleHandTrackingVisualizationCfg:
 @dataclass(kw_only=True)
 class SingleHandTrackingCommandCfg(CommandTermCfg):
   recipe_path: str = ""
+  mirror_reference_y: bool = False
   axis_point_radius_m: float = 0.10
   object_position_tanh_scale_m: float = 0.15
   trajectory_sampling_mode: str = "uniform"
@@ -186,6 +187,16 @@ class SingleHandTrackingCommand(CommandTerm):
         "link_pos",
       )
     }
+    if cfg.mirror_reference_y:
+      # Mirror wrist-local references before recomputing world-frame velocities.
+      from wuji_mjlab.utils import hand_mirroring
+
+      pose = self._frames["object_pose"]
+      self._frames["object_pose"] = torch.cat(
+        (hand_mirroring.points_y(pose[:, :3]), hand_mirroring.quat_y(pose[:, 3:])),
+        dim=-1,
+      )
+      self._frames["link_pos"] = hand_mirroring.points_y(self._frames["link_pos"])
     self._configure_fixed_wrist_reference()
     self.trajectory_ids = torch.zeros(
       self.num_envs, dtype=torch.long, device=self.device

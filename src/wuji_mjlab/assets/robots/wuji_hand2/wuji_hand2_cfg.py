@@ -292,24 +292,26 @@ def _apply_task_names(
   return spec
 
 
-def _palm_rooted_xml(xml_path: Path) -> str:
+def _palm_rooted_xml(xml_path: Path, hand_side: str = "right") -> str:
   """Return the upstream MJCF with the palm as root and the mount as its child."""
+  prefix = "l" if hand_side == "left" else "r"
   root = ET.parse(xml_path).getroot()
   worldbody = root.find("worldbody")
   if worldbody is None or [(e.tag, e.get("name")) for e in worldbody] != [
-    ("body", "r_mount")
+    ("body", f"{prefix}_mount")
   ]:
-    raise ValueError(f"{xml_path}: expected the worldbody to hold only body 'r_mount'")
+    raise ValueError(f"{xml_path}: expected only body '{prefix}_mount' in worldbody")
   mount = worldbody[0]
   palms = [e for e in mount if e.tag == "body"]
   if (
-    [palm.get("name") for palm in palms] != ["r_wrist"]
+    [palm.get("name") for palm in palms] != [f"{prefix}_wrist"]
     or set(mount.attrib) != {"name"}
     or any(e.tag not in ("inertial", "geom", "body") for e in mount)
     or not set(palms[0].attrib) <= {"name", "pos", "quat"}
   ):
     raise ValueError(
-      f"{xml_path}: expected 'r_mount' at the origin holding only geoms and body 'r_wrist'"
+      f"{xml_path}: expected '{prefix}_mount' at the origin holding only geoms "
+      f"and body '{prefix}_wrist'"
     )
   palm = palms[0]
   pos = np.array(palm.attrib.pop("pos", "0 0 0").split(), dtype=np.float64)
@@ -325,20 +327,24 @@ def _palm_rooted_xml(xml_path: Path) -> str:
   return ET.tostring(root, encoding="unicode")
 
 
-def _load_upstream_spec(xml_path: Path) -> mujoco.MjSpec:
+def _load_upstream_spec(xml_path: Path, hand_side: str = "right") -> mujoco.MjSpec:
   if not xml_path.is_file():
     raise FileNotFoundError(
       f"Wuji Hand 2 MJCF not found: {xml_path}. Fetch the wuji-description "
       "submodule with `git submodule update --init`."
     )
-  spec = mujoco.MjSpec.from_string(_palm_rooted_xml(xml_path))
+  spec = mujoco.MjSpec.from_string(_palm_rooted_xml(xml_path, hand_side))
   # Resolve meshdir against the MJCF's directory, as MjSpec.from_file does.
   spec.modelfiledir = str(xml_path.parent)
   sensors = list(spec.sensors)
-  if sorted(sensor.name for sensor in sensors) != sorted(_DROPPED_SENSORS):
+  dropped = tuple(
+    name.replace("r_", "l_", 1) if hand_side == "left" else name
+    for name in _DROPPED_SENSORS
+  )
+  if sorted(sensor.name for sensor in sensors) != sorted(dropped):
     raise ValueError(
       f"Wuji Hand 2 sensors {sorted(s.name for s in sensors)} differ from the "
-      f"dropped IMU sensors {sorted(_DROPPED_SENSORS)}"
+      f"dropped IMU sensors {sorted(dropped)}"
     )
   for sensor in sensors:
     spec.delete(sensor)
@@ -347,15 +353,19 @@ def _load_upstream_spec(xml_path: Path) -> mujoco.MjSpec:
 
 def wuji_hand2_xml_path(hand_side: str = "right") -> Path:
   """Return the Wuji Hand 2 MJCF path."""
-  if hand_side != "right":
-    raise ValueError(f"Unsupported hand_side '{hand_side}'. Only 'right' is supported.")
+  if hand_side not in ("left", "right"):
+    raise ValueError(
+      f"Unsupported hand_side {hand_side!r}; expected 'left' or 'right'."
+    )
   return WUJI_HAND2_DESCRIPTION_DIR / "mjcf" / f"{hand_side}.xml"
 
 
 def wuji_hand2_mesh_dir(hand_side: str = "right") -> Path:
   """Return the Wuji Hand 2 mesh directory."""
-  if hand_side != "right":
-    raise ValueError(f"Unsupported hand_side '{hand_side}'. Only 'right' is supported.")
+  if hand_side not in ("left", "right"):
+    raise ValueError(
+      f"Unsupported hand_side {hand_side!r}; expected 'left' or 'right'."
+    )
   return WUJI_HAND2_DESCRIPTION_DIR / "meshes" / hand_side
 
 
@@ -367,14 +377,26 @@ def _get_assets(xml_path: Path, meshdir: str) -> dict[str, bytes]:
   return assets
 
 
-def _get_spec(xml_path: Path) -> mujoco.MjSpec:
-  spec = _load_upstream_spec(xml_path)
+def _get_spec(xml_path: Path, hand_side: str = "right") -> mujoco.MjSpec:
+  spec = _load_upstream_spec(xml_path, hand_side)
   spec.assets = _get_assets(xml_path, spec.meshdir)
-  return _apply_task_names(spec, WUJI_HAND2_TASK_NAMES)
+  names = WUJI_HAND2_TASK_NAMES
+  if hand_side == "left":
+    # Keep the checkpoint's anatomical joint order and existing task selectors.
+    # These right_* identifiers are aliases; geometry and axes come from left.xml.
+    names = {
+      kind: {
+        ("l_" + source[2:] if source.startswith("r_") else source): target
+        for source, target in mapping.items()
+      }
+      for kind, mapping in names.items()
+    }
+    names["model"] = {"wujihand2_2-left": "wujihand2-left-mjlab"}
+  return _apply_task_names(spec, names)
 
 
 def get_wuji_hand2_cfg(hand_side: str = "right") -> EntityCfg:
-  """Build the Wuji Hand 2 EntityCfg for the requested side."""
+  """Build either physical side using the canonical right_* task aliases."""
   from mjlab.actuator import XmlActuatorCfg
   from mjlab.entity import EntityArticulationInfoCfg, EntityCfg
 
@@ -395,7 +417,7 @@ def get_wuji_hand2_cfg(hand_side: str = "right") -> EntityCfg:
       },
       joint_vel={".*": 0.0},
     ),
-    spec_fn=partial(_get_spec, xml_path),
+    spec_fn=partial(_get_spec, xml_path, hand_side),
     articulation=EntityArticulationInfoCfg(
       actuators=(
         XmlActuatorCfg(
