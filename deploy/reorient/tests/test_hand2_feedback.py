@@ -1,15 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Wuji Technology Co., Ltd.
 from __future__ import annotations
-
-import importlib.util
 import sys
-from pathlib import Path
+
 from types import ModuleType, SimpleNamespace
 
 import pytest
 
-from wuji_reorient_deploy import drivers as drivers_module
 from wuji_reorient_deploy.constants import load_constants
 from wuji_reorient_deploy.drivers import hand2 as hand2_module
 from wuji_reorient_deploy.drivers.hand2 import WujiHand2Driver
@@ -21,14 +18,6 @@ _ALL_NIDS = tuple(
   for joint in range(4)
 )
 
-
-def _load_check_setup():
-  path = Path(__file__).parents[1] / "tools" / "check_setup.py"
-  spec = importlib.util.spec_from_file_location("hand2_feedback_check_setup_test", path)
-  assert spec is not None and spec.loader is not None
-  module = importlib.util.module_from_spec(spec)
-  spec.loader.exec_module(module)
-  return module
 
 
 class _Clock:
@@ -180,6 +169,8 @@ def _construct_driver(*, energize=True):
   return WujiHand2Driver(
     load_constants(2, "right"),
     "right",
+    kp=3.0,
+    kd=0.2,
     energize=energize,
   )
 
@@ -225,41 +216,6 @@ def test_default_driver_energizes_motors(monkeypatch):
     assert hand.enable_calls == 1
   finally:
     driver.close()
-
-
-def test_check_setup_uses_read_only_hand2_connection(monkeypatch):
-  hand, _ = _install_fake_sdk(monkeypatch)
-
-  check = _load_check_setup()._check_connect(2, "right", None)
-
-  assert check.ok
-  assert hand.enable_calls == 0
-  assert "motors NOT energized (read-only connect)" in check.detail
-
-
-def test_check_setup_treats_undeclared_driver_as_energized(monkeypatch):
-  const = load_constants(2, "right")
-
-  class DriverWithoutEnergizedFlag:
-    def read_encoders(self):
-      return const.default_joint_pos.copy()
-
-    def fault(self):
-      return None
-
-    def close(self):
-      pass
-
-  monkeypatch.setattr(
-    drivers_module,
-    "make_driver",
-    lambda *args, **kwargs: DriverWithoutEnergizedFlag(),
-  )
-
-  check = _load_check_setup()._check_connect(2, "right", None)
-
-  assert check.ok
-  assert "motors WERE energized" in check.detail
 
 
 def _install_fake_hand1_sdk(
@@ -314,50 +270,6 @@ def _install_fake_hand1_sdk(
   sdk.filter = SimpleNamespace(LowPass=lambda **kwargs: None)
   monkeypatch.setitem(sys.modules, "wujihandpy", sdk)
   return hand
-
-
-def test_check_setup_gen1_refuses_connection_without_energize_consent(monkeypatch):
-  hand = _install_fake_hand1_sdk(monkeypatch)
-
-  check = _load_check_setup()._check_connect(1, "right", None)
-
-  assert not check.ok
-  assert hand.enable_calls == 0
-
-
-def test_check_setup_gen1_opt_in_energizes_and_disables(monkeypatch, capsys):
-  hand = _install_fake_hand1_sdk(
-    monkeypatch, on_enable=lambda: "WARNING" in capsys.readouterr().err)
-
-  check = _load_check_setup()._check_connect(1, "right", None, allow_energize=True)
-
-  assert check.ok
-  assert hand.enable_calls == 1
-  assert hand.warning_before_enable
-  assert hand.disable_calls == 1
-  assert hand.close_calls == 1
-
-
-def test_check_setup_gen1_read_failure_still_disables_and_closes(monkeypatch):
-  hand = _install_fake_hand1_sdk(monkeypatch, fail_read=True)
-
-  check = _load_check_setup()._check_connect(1, "right", None, allow_energize=True)
-
-  assert not check.ok
-  assert hand.enable_calls == 1
-  assert hand.disable_calls == 1
-  assert hand.close_calls == 1
-
-
-def test_check_setup_gen1_controller_failure_still_disables_and_closes(monkeypatch):
-  hand = _install_fake_hand1_sdk(monkeypatch, fail_open=True)
-
-  check = _load_check_setup()._check_connect(1, "right", None, allow_energize=True)
-
-  assert not check.ok
-  assert hand.enable_calls == 1
-  assert hand.disable_calls == 1
-  assert hand.close_calls == 1
 
 
 @pytest.mark.parametrize("error", [RuntimeError("enable failed"), KeyboardInterrupt()])

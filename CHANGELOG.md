@@ -7,6 +7,14 @@ and this project uses calendar versioning (YYYY.M.D).
 
 ## [Unreleased]
 
+### Removed
+
+- Reorient Hand 2 deployment now requires explicit MIT gains for
+  `WujiHand2Driver`; the previous default gains are gone. `run_policy.py` no
+  longer accepts `--kp` / `--kd`; gains come from the simulation gains scaled
+  by `pd_scale`. `check_setup.py` no longer accepts `--connect` /
+  `--allow-energize` ([#22](https://github.com/wuji-technology/wuji-mjlab/issues/22)).
+
 ## [2026.10.22]
 
 ### Changed

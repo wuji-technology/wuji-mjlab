@@ -34,8 +34,9 @@ class WujiHand2Driver(HandDriverBase):
     constants: Constants,
     hand_side: str = "right",
     serial_number: str | None = None,
-    kp: float | np.ndarray = 20.0,
-    kd: float | np.ndarray = 0.1,
+    *,
+    kp: float | np.ndarray,
+    kd: float | np.ndarray,
     effort_limit_a: float = 1.5,
     energize: bool = True,
   ):

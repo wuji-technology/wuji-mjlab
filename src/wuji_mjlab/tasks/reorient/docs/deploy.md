@@ -121,10 +121,6 @@ pixi run -e reorient-deploy home -- --gen 2 --hand right
 pixi run -e reorient-deploy check -- --gen 2 --hand right --ckpt wuji-mjlab-v2026.10.22-assets/reorient/checkpoints/hand2/policy.onnx
 ```
 
-For gen1, `--connect` refuses to connect unless you explicitly add
-`--allow-energize`; it does not power the motors by default. Warning: adding
-`--allow-energize` powers the motors during the check.
-
 Additional tools under `tools/`: `camera_calibrate.py` /
 `view_release_cube.py` (camera intrinsics calibration and printable-cube mesh
 preview; both need a display, and `camera_calibrate.py` additionally needs

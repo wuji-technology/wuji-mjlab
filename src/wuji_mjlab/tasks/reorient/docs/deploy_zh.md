@@ -119,9 +119,6 @@ pixi run -e reorient-deploy home -- --gen 2 --hand right
 pixi run -e reorient-deploy check -- --gen 2 --hand right --ckpt wuji-mjlab-v2026.10.22-assets/reorient/checkpoints/hand2/policy.onnx
 ```
 
-Wuji Hand 1 使用 `--connect` 时，除非显式加上 `--allow-energize`，否则会拒绝连接；
-默认不会给电机上电。警告：加上 `--allow-energize` 后，检查期间电机会通电。
-
 `tools/` 下的其他工具：`camera_calibrate.py` / `view_release_cube.py`
 （相机内参标定和方块打印网格预览；两者都需要显示器，
 `camera_calibrate.py` 另外还需要 MVS SDK 和一台已连接的相机）。
